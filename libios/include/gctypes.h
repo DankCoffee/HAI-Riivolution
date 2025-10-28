@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #ifdef __cplusplus
    extern "C" {
 #endif
@@ -35,10 +36,12 @@ typedef s32 osqueue_t; // ipc message queue
 typedef s32 ostimer_t; // ipc timer
 
 // bool is a standard type in cplusplus, but not in c.
+/*
 #ifndef __cplusplus
 typedef u8 bool;
 enum { false, true };
 #endif
+*/
 
 typedef unsigned int BOOL;
 #define FIXED s32                                   ///< Alias type for sfp32

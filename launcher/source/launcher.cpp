@@ -582,6 +582,7 @@ LauncherStatus::Enum Launcher_Launch()
 		RVL_Close();
 		ISFS_Deinitialize();
 		WPAD_Shutdown();
+		//TODO: shutdown Wii U gamepad connection
 		USB_Deinitialize();
 		WDVD_Close();
 		__ES_Close();

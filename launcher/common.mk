@@ -16,6 +16,7 @@ MODULES += filemodule dipmodule
 LIBS :=	$(LIB_XMLXX) $(LIB_XML2) -lpng -lz -lfat -lwiiuse -lbte -lasnd -logc -lvorbisidec -logg -lfreetype -lbz2 $(LIB_FILE) $(LIBS)
 INCLUDES := $(SOURCE_DIR)/$(BUILD) $(SOURCE_DIR)/include $(LAUNCHER_DIR)/include $(LAUNCHER_DIR)/lib/libwiigui $(LAUNCHER_DIR)/lib \
 						$(COMMON_DIR)/filemodule/include \
+						$(LAUNCHER_DIR)/lib/libwiidrc/include \
 						$(LAUNCHER_DIR)/lib/libxml2/include $(LAUNCHER_DIR)/lib/libxml++ $(LAUNCHER_DIR)/lib/libxml++/libxml++
 
 CFLAGS		=	-fdata-sections -ffunction-sections -g -O2 -Wall -Wno-deprecated-declarations -Wno-multistatement-macros $(MACHDEP) $(INCLUDE)

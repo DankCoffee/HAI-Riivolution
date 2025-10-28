@@ -176,22 +176,26 @@ class GuiTrigger
 		//!\param ch Controller channel number
 		//!\param wiibtns Wii controller trigger button(s) - classic controller buttons are considered separately
 		//!\param gcbtns GameCube controller trigger button(s)
-		void SetSimpleTrigger(s32 ch, u32 wiibtns, u16 gcbtns);
+		//!\param drcbtns DRC (Wii U GamePad) trigger button(s) (default: 0)
+		void SetSimpleTrigger(s32 ch, u32 wiibtns, u16 gcbtns, u16 drcbtns = 0);
 		//!Sets a held trigger. Requires: element is selected, and trigger button is pressed
 		//!\param ch Controller channel number
 		//!\param wiibtns Wii controller trigger button(s) - classic controller buttons are considered separately
 		//!\param gcbtns GameCube controller trigger button(s)
-		void SetHeldTrigger(s32 ch, u32 wiibtns, u16 gcbtns);
+		//!\param drcbtns DRC (Wii U GamePad) trigger button(s) (default: 0)
+		void SetHeldTrigger(s32 ch, u32 wiibtns, u16 gcbtns, u16 drcbtns = 0);
 		//!Sets a button-only trigger. Requires: Trigger button is pressed
 		//!\param ch Controller channel number
 		//!\param wiibtns Wii controller trigger button(s) - classic controller buttons are considered separately
 		//!\param gcbtns GameCube controller trigger button(s)
-		void SetButtonOnlyTrigger(s32 ch, u32 wiibtns, u16 gcbtns);
+		//!\param drcbtns DRC (Wii U GamePad) trigger button(s) (default: 0)
+		void SetButtonOnlyTrigger(s32 ch, u32 wiibtns, u16 gcbtns, u16 drcbtns = 0);
 		//!Sets a button-only trigger. Requires: trigger button is pressed and parent window of element is in focus
 		//!\param ch Controller channel number
 		//!\param wiibtns Wii controller trigger button(s) - classic controller buttons are considered separately
 		//!\param gcbtns GameCube controller trigger button(s)
-		void SetButtonOnlyInFocusTrigger(s32 ch, u32 wiibtns, u16 gcbtns);
+		//!\param drcbtns DRC (Wii U GamePad) trigger button(s) (default: 0)
+		void SetButtonOnlyInFocusTrigger(s32 ch, u32 wiibtns, u16 gcbtns, u16 drcbtns = 0);
 		//!Get X/Y value from Wii Joystick (classic, nunchuk) input
 		//!\param right Controller stick (left = 0, right = 1)
 		//!\param axis Controller stick axis (x-axis = 0, y-axis = 1)
@@ -215,6 +219,9 @@ class GuiTrigger
 		WPADData * wpad; //!< Wii controller trigger
 		WPADData wpaddata; //!< Wii controller trigger data
 		PADData pad; //!< GameCube controller trigger data
+		const struct WiiDRCData *drc; //!< DRC (Wii U GamePad) trigger data
+		u16 drc_btns_d; //!< DRC buttons down mask
+		u16 drc_btns_h; //!< DRC buttons held mask
 };
 
 extern GuiTrigger userInput[4];

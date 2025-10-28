@@ -1,4 +1,6 @@
-# [Riivolution](https://wiibrew.org/wiki/Riivolution) and [RawkSD](https://wiibrew.org/wiki/RawkSD)
+# [HAI-Riivolution](https://wiibrew.org/wiki/Riivolution) and [RawkSD](https://wiibrew.org/wiki/RawkSD)
+
+Modified version of Riivolution for running under HAI-IOS, supporting Gamepad input
 
 Information archives:
 - [Riivolution Wiki](https://aerialx.github.io/rvlution.net/wiki/Main_Page/)
@@ -8,6 +10,8 @@ Information archives:
 
 - [devkitPPC and devkitARM](https://devkitpro.org/wiki/Getting_Started)
 	- `dkp-pacman -S wii-dev ppc-portlibs wii-portlibs devkitARM`
+- ppc-libogg, ppc-libvorbisidec and ppc-freetype
+	- `dkp-pacman -S ppc-libogg ppc-libvorbisidec ppc-freetype`
 - a build environment for your host with GNU Make, some coreutils, and a C++ compiler
 	- on Windows, devkitPro supplies and requires this via [MSYS2](https://www.msys2.org/)
 - Python 3.x and python-yaml or pyyaml (only for rawksd)

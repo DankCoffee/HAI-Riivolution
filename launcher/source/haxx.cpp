@@ -22,7 +22,7 @@ using std::vector;
 //#define BABELFISH
 
 #if !defined(BABELFISH) && !defined(DEBUG_HAXX)
-#define printf(...)
+//#define printf(...)
 #endif
 
 #define MEM2_PROT           0x0D8B420A
@@ -167,18 +167,22 @@ static void IOS_ReloadwithAHB(u32 ios_version);
 
 int Haxx_Init()
 {
-	if (IOS_GetVersion() != (u32)HAXX_IOS)
+	//HAI-IOS fw.img should be statically patched
+	/*
+	if (IOS_GetVersion() != (u32)HAXX_IOS) //skip check
 		IOS_ReloadwithAHB((u32)HAXX_IOS);
 
-	if (!do_exploit())
+	if (!do_exploit()) //basically skip
 		return -1;
-
+	*/
+	
 	usleep(4000);
 	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
 		return -1;
 
 	printf("Riiv filemodule loaded\n");
 
+	//keep
 	usleep(4000);
 	if (load_module_code(dipmodule_elf, dipmodule_elf_end) <= 0)
 		return -1;
@@ -631,6 +635,7 @@ u8 *make_tmd(u64 title)
 
 int check_for_sneek(s32 fd)
 {
+	//skip
 	s32 xfd;
 	u32 bversion;
 
@@ -659,6 +664,8 @@ int check_for_sneek(s32 fd)
 
 int disable_mem2_protection(s32 fd)
 {
+	//skip in HAI-IOS
+	//binary should be pre-patched to disable protections
 	static const u32 ios_ret[] =
 	{
 		0xE3A00001, // mov r0, #1
@@ -900,6 +907,9 @@ static int patch_gpio_stm(void* buf, s32 size)
 	u8 *kernel = (u8*)buf;
 	static const u8 gpio_orig[8] =  {0xD1, 0x0F, 0x28, 0xFC, 0xD0, 0x33, 0x28, 0xFC};
 	static const u8 gpio_orig2[8] = {0xD1, 0x3D, 0x23, 0x89, 0x00, 0x9B, 0x42, 0x98};
+	static const u8 gpio_orig3[16] = {0x4b, 0x76, 0x68, 0x1b, 0x6d, 0x5b, 0x2b, 0x0e, 0xD0, 0x02, 0x20, 0x01, 0x42, 0x40, 0x47, 0x70};
+	//others are changing bneq to no-op
+	//gpio_orig3 is originally beq, change to unconditional branch
 	for (i=0; i < size - sizeof(gpio_orig); i++)
 	{
 		if (!memcmp(kernel+i, gpio_orig, sizeof(gpio_orig)) || !memcmp(kernel+i, gpio_orig2, sizeof(gpio_orig2)))
@@ -908,6 +918,10 @@ static int patch_gpio_stm(void* buf, s32 size)
 			kernel[i+1] = 0xC0;
 			printf("gpio_stm patched\n");
 			return 1;
+		}
+		if (!memcmp(kernel+i, gpio_orig, sizeof(gpio_orig)))
+		{
+			kernel[i+8] = 0xE0;
 		}
 	}
 	return 0;
@@ -1062,6 +1076,9 @@ static u8 *load_tmd_content(tmd* title_tmd, u16 index)
 	return content;
 }
 
+
+//normally loads IOS 37, for HAI-IOS load from SD card
+//or convert HAI-IOS to an installable format and install somewhere
 static void* prepare_new_kernel(u64 title)
 {
 	s32 size=0;
@@ -1080,7 +1097,7 @@ static void* prepare_new_kernel(u64 title)
 	}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
 
-	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob)))
+	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob))) //signature check is disabled
 	{
 		free(tmd_blob);
 		printf("IOS %d TMD failed sig check\n", (u32)title);
@@ -1134,7 +1151,7 @@ static void* prepare_new_kernel(u64 title)
 		printf("Babelfish insertion done\n");
 	}
 #endif
-
+	//should be statically applied to HAI-IOS
 	if (!patch_mem2(kernel_blob, size) || !patch_ios37_sd_load(kernel_blob, size) ||
 		!patch_gpio_stm(kernel_blob, size) || !patch_fs_redirect(kernel_blob, size) ||
 		!patch_prng_perms(kernel_blob, size))
@@ -1211,10 +1228,15 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 
 static int load_module_file(s32 fd, const char *filename)
 {
+	//HAI-IOS should be pre-patched with the modified code
+	//check for first 15 bytes of old_es_code, retained_patch or new_es_code
+	//copy to tempory buffer, load the module and copy back
 	const u8 old_es_code[24] = {
 		0x68, 0x4B, 0x2B, 0x06, 0xD1, 0x0C, 0x68, 0x8B, 0x2B, 0x00,
 		0xD1, 0x09, 0x68, 0xC8, 0x68, 0x42, 0x23, 0xA9, 0x00, 0x9B,
 		0x42, 0x9A, 0xD1, 0x03};
+	
+	const u8 retained_patch[15] = {0x49, 0x01, 0x47, 0x88, 0x46, 0xC0, 0xE0, 0x01, 0x12, 0xFF, 0xFE, 0x00, 0x22, 0x00, 0x23};
 
 	const u16 load_module[12] =
 	{
@@ -1227,22 +1249,31 @@ static int load_module_file(s32 fd, const char *filename)
 		0xE8BD,	0x4070, // LDMFD SP!,{R4-R6,LR}
 		0xE12F,	0xFF1E, // BX LR
 	};
-
+	u8 temp[24];
 	u8 *addr;
 	s32 ret=1;
 	ioctlv vec;
 
 	for (addr=ES_MODULE_START;addr < ES_MODULE_START+ES_MODULE_SIZE-sizeof(old_es_code);addr++) {
-		if (!memcmp(addr, old_es_code, sizeof(old_es_code))) {
-			memcpy(addr, load_module, sizeof(load_module));
+		if (!memcmp(addr, old_es_code, 15) || !memcmp(addr, retained_patch, sizeof(retained_patch)) || !memcmp(addr, load_module, 15)) {
+
+			memcpy(temp, addr, 24); //store current code in temporary buffer
+			memcpy(addr, load_module, sizeof(load_module)); //load in new module
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
 
 			// restore the old code and flush
-			memcpy(addr, old_es_code, sizeof(load_module));
+			memcpy(addr, temp, sizeof(load_module));
+			//memcpy(addr, old_es_code, sizeof(load_module));
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
+			break;
+		}
+		else if (!memcmp(addr, load_module, sizeof(load_module))) {
+			vec.data = (void*)filename;
+			vec.len = strlen(filename)+1;
+			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
 			break;
 		}
 	}
@@ -1415,6 +1446,7 @@ static int load_sdhc_module(u64 title_ios)
 
 static int do_sig_check_patch()
 {
+	//should be pre-patched
 	u32 i, size = 0x8000;
 	u8 *kernel = (u8*)0x93A70000;
 
@@ -1600,8 +1632,9 @@ static bool do_exploit()
 
 	if (IOS_GetVersion() != (u32)HAXX_IOS || (ios_rev != 5663 && ios_rev != 5662 && ios_rev != 3869 && ios_rev != 5919))
 	{
-		printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
-		return false;
+		printf("skipping IOS version check");
+		//printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
+		//return false;
 	}
 
 	es_fd = IOS_Open("/dev/es", 0);
@@ -1611,7 +1644,8 @@ static bool do_exploit()
 		return false;
 	}
 
-	sneek = disable_mem2_protection(es_fd);
+	//sneek = disable_mem2_protection(es_fd);
+	sneek = 1;
 	if (sneek)
 	{
 		void *new_ios;
@@ -1626,11 +1660,13 @@ static bool do_exploit()
 
 		if (sneek==1)
 		{
+			/*
 			if (!do_patch(NAND_PERMS_INDEX))
 			{
 				patch_failed = 1;
 				printf("NAND Permissions patch failed\n");
 			}
+			*/
 			sneek = 0;
 		}
 
@@ -1646,6 +1682,10 @@ static bool do_exploit()
 			//seeprom_write(korean_key, 0x74, 16);
 			//seeprom_write(null_key, 0x74, 16);
 		}
+
+		//not needed in HAI-IOS
+		//instead statically apply all patches
+		/*
 		if (!patch_failed)
 		{
 			new_ios = prepare_new_kernel(IOS_DEST);
@@ -1653,32 +1693,39 @@ static bool do_exploit()
 			if (patch_failed)
 				printf("Failed to prepare new kernel\n");
 		}
+		*/
 
+		/* also skip
 		if (!patch_failed)
 		{
 			shutdown_for_reload();
 			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
 			free(new_ios);
 			es_fd = 0;
-			recover_from_reload((u32)IOS_DEST);
+			recover_from_reload((u32)HAXX_IOS);
+		*/
 #if DEBUG_HAXX && DEBUG_NET
 			Init_DebugConsole();
 #endif
-			if (IOS_GetVersion() != (u32)IOS_DEST || IOS_GetRevision() != ios_rev+1) {
+			/*
+			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
 				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
 			} else
 				printf("Loaded patched IOS\n");
-		}
+			*/
+		//}
 
+		/*
 		if (!patch_failed)
-			
-			patch_failed = !do_patch(NEW_NAND_PERMS_INDEX);
+			patch_failed = !do_patch(NAND_PERMS_INDEX);
+		*/
 
 		// if sneek was found, we need to reload IOS again before doing anything else
 		// to make sure we have clean modules
-		patch_failed |= sneek;
+		//patch_failed |= sneek; disable check
 
+		/*
 		if (!patch_failed)
 		{
 			usleep(4000);
@@ -1694,11 +1741,26 @@ static bool do_exploit()
 				printf("SDHC loaded\n");
 		}
 
+#ifndef YARR
+		if (!patch_failed)
+			patch_failed = !do_sig_check_patch();
+		if (!patch_failed)
+			patch_failed = !do_patch(DVD_SWITCH_INDEX);
+#else
 		// kill sig check
-		*(u16*)0x93A7547A = 0x2000;
-		*(u16*)0x93A75626 = 0x2000;
-
-
+		if (*(u16*)0x93A752E6 == 0x2007) {
+			*(u16*)0x93A752E6 = 0x2000;
+			DCFlushRange((void*)0x93A752E0, 32);
+		}
+		// use original IOS version
+		if (IOS_GetVersion() > 100) {
+			u32 ios = *MEM_IOSVERSION;
+			ios = ((ios&0xFFFF0000)-(100<<16))|(ios&0xFFFF);
+			*MEM_IOSVERSION = ios;
+			DCFlushRange(MEM_IOSVERSION, 32);
+		}
+#endif
+		/*
 		if (sneek) {
 			printf("SNEEK found, have to reboot again *sigh*\n");
 			if (es_fd >=0 )
@@ -1706,6 +1768,7 @@ static bool do_exploit()
 			IOS_ReloadIOS((u32)HAXX_IOS);
 			return do_exploit();
 		}
+		*/
 
 		if (!patch_failed)
 			printf("All patching done!\n");
@@ -1718,6 +1781,7 @@ static bool do_exploit()
 	return !patch_failed;
 }
 
+//DO NOT CALL
 void RunBootmii()
 {
 	s32 in_fd;

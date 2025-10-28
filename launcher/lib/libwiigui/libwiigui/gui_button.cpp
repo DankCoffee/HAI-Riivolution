@@ -216,11 +216,17 @@ void GuiButton::Update(GuiTrigger * t)
 				cc_btns = t->wpad->btns_d >> 16;
 				cc_btns_trig = trigger[i]->wpad->btns_d >> 16;
 
+				// Check DRC buttons
+				bool drc_btn_pressed = false;
+				if(t->drc && trigger[i]->drc_btns_d)
+					drc_btn_pressed = (t->drc->button & trigger[i]->drc_btns_d) != 0;
+
 				if(
 					(t->wpad->btns_d > 0 &&
 					(wm_btns & wm_btns_trig ||
 					(cc_btns & cc_btns_trig && (t->wpad->exp.type == EXP_CLASSIC || t->wpad->exp.type == EXP_GUITAR_HERO_3)))) ||
-					(t->pad.btns_d & trigger[i]->pad.btns_d))
+					(t->pad.btns_d & trigger[i]->pad.btns_d) ||
+					drc_btn_pressed)
 				{
 					// Allow any wiimote to click on anything
 					//if(t->chan == stateChan || stateChan == -1)
@@ -269,22 +275,30 @@ void GuiButton::Update(GuiTrigger * t)
 				cc_btns_h = t->wpad->btns_h >> 16;
 				cc_btns_trig = trigger[i]->wpad->btns_h >> 16;
 
+				// Check DRC buttons (down)
+				bool drc_btn_down = false;
+				if(t->drc && trigger[i]->drc_btns_h)
+					drc_btn_down = (t->drc->button & trigger[i]->drc_btns_h) != 0;
+
 				if(
 					(t->wpad->btns_d > 0 &&
 					(wm_btns & wm_btns_trig ||
 					(cc_btns & cc_btns_trig && (t->wpad->exp.type == EXP_CLASSIC || t->wpad->exp.type == EXP_GUITAR_HERO_3)))) ||
-					(t->pad.btns_d & trigger[i]->pad.btns_h))
+					(t->pad.btns_d & trigger[i]->pad.btns_h) ||
+					drc_btn_down)
 				{
 					if(trigger[i]->type == TRIGGER_HELD && state == STATE_SELECTED &&
 						(t->chan == stateChan || stateChan == -1))
 						this->SetState(STATE_CLICKED, t->chan);
 				}
 
+				// Check DRC buttons (held) - reuse drc_btn_down since button is still pressed
 				if(
 					(t->wpad->btns_h > 0 &&
 					(wm_btns_h & wm_btns_trig ||
 					(cc_btns_h & cc_btns_trig && (t->wpad->exp.type == EXP_CLASSIC || t->wpad->exp.type == EXP_GUITAR_HERO_3)))) ||
-					(t->pad.btns_h & trigger[i]->pad.btns_h))
+					(t->pad.btns_h & trigger[i]->pad.btns_h) ||
+					drc_btn_down)
 				{
 					if(trigger[i]->type == TRIGGER_HELD)
 						held = true;

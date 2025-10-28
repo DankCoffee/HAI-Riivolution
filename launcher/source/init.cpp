@@ -5,6 +5,7 @@
 #include <ogcsys.h>
 #include <unistd.h>
 #include <wiiuse/wpad.h>
+#include <wiidrc/wiidrc.h>
 
 #include "video.h"
 #include "audio.h"
@@ -31,6 +32,17 @@ bool PressA()
 			WPAD_ButtonsDown(1) |
 			WPAD_ButtonsDown(2) |
 			WPAD_ButtonsDown(3);
+
+		// Check DRC (Wii U GamePad) input
+		if (WiiDRC_Inited() && WiiDRC_Connected()) {
+			WiiDRC_ScanPads();
+			u32 drc_down = WiiDRC_ButtonsDown();
+			if (drc_down & WIIDRC_BUTTON_A)
+				return true;
+			if (drc_down & WIIDRC_BUTTON_HOME)
+				return false;
+		}
+
 		if (down & WPAD_BUTTON_A)
 			return true;
 		if (down & WPAD_BUTTON_HOME)
@@ -44,6 +56,14 @@ void PressHome()
 	do {
 		VIDEO_WaitVSync();
 		WPAD_ScanPads();
+
+		// Check DRC (Wii U GamePad) input
+		if (WiiDRC_Inited() && WiiDRC_Connected()) {
+			WiiDRC_ScanPads();
+			u32 drc_down = WiiDRC_ButtonsDown();
+			if (drc_down & WIIDRC_BUTTON_HOME)
+				break;
+		}
 	} while (!((WPAD_ButtonsDown(0) |
 		WPAD_ButtonsDown(1) |
 		WPAD_ButtonsDown(2) |
@@ -134,6 +154,7 @@ void Initialise()
 	if (Haxx_Init() < 0) {
 		int approach = 0;
 		WPAD_Init();
+		//TODO: check for and initialize the Wii U gamepad here
 		printf("\n\n");
 		if (is_wiiu) {
 			printf("IOS Error. Please try relaunching this program from HBC.\n");
@@ -195,7 +216,7 @@ void Initialise()
 
 	Init_DebugConsole();
 
-	SetupPads();
+	SetupPads(); //check this function for adding gamepad integration
 	InitAudio();
 
 	SYS_SetResetCallback(CallbackReset);

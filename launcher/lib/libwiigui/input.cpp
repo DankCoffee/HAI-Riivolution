@@ -14,6 +14,7 @@
 #include <ogcsys.h>
 #include <unistd.h>
 #include <wiiuse/wpad.h>
+#include <wiidrc/wiidrc.h>
 
 #include "video.h"
 #include "input.h"
@@ -33,6 +34,15 @@ static volatile int rumbleCount[4] = {0,0,0,0};
 void UpdatePads()
 {
 	WPAD_ScanPads();
+
+	// Scan DRC if initialized and connected
+	if (WiiDRC_Inited() && WiiDRC_Connected()) {
+		WiiDRC_ScanPads();
+		// Update DRC data pointer for first controller
+		userInput[0].drc = WiiDRC_Data();
+	} else {
+		userInput[0].drc = NULL;
+	}
 
 #ifdef GCN_PAD
 	PAD_ScanPads();
@@ -69,11 +79,20 @@ void SetupPads()
 	WPAD_SetDataFormat(WPAD_CHAN_ALL,WPAD_FMT_BTNS_ACC_IR);
 	WPAD_SetVRes(WPAD_CHAN_ALL, screenwidth, screenheight);
 
+	// Initialize DRC (Wii U GamePad) if available
+	WiiDRC_Init();
+
 	for(int i=0; i < 4; i++)
 	{
 		userInput[i].chan = i;
 		userInput[i].wpad = WPAD_Data(i);
 		rumbleRequest[i] = rumbleAllowed<<1;
+
+		// Set DRC data for the first controller if connected
+		if (i == 0 && WiiDRC_Inited() && WiiDRC_Connected())
+			userInput[i].drc = WiiDRC_Data();
+		else
+			userInput[i].drc = NULL;
 	}
 }
 
