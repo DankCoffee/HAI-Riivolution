@@ -307,6 +307,10 @@ void AddBuiltinPatches(RiiDisc* disc)
 	AddSDCardPatches(disc, gameID);
 	AddMKWiiRCEPatches(disc, gameID);
 
+	// NOTE: Kirby's extensive patch (1392 patches per region) is provided as a
+	// separate Riivolution XML file (kirby_usb.xml) that users can place in their
+	// /riivolution/ folder. This allows users to control and customize the patch.
+
 	// Note: Built-in patches are added to disc->Patches but NOT registered
 	// in any section/option/choice. This means they won't appear in the menu
 	// and won't be selectable by users. However, RVL_PatchMemory() only applies

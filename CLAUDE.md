@@ -143,7 +143,7 @@ The `dipmodule` also contains USB HID handling (`dipmodule/source/usbhid.cpp`) t
 - `launcher/source/main.cpp` - Application entry point
 - `launcher/source/init.cpp` - Initialization, IOS setup, shutdown handling
 - `launcher/source/haxx.cpp` - HAI-IOS exploit and module loading
-- `launcher/source/launcher.cpp` - Game launching logic
+- `launcher/source/launcher.cpp` - Game launching logic, includes anti-002 fix
 - `launcher/source/riivolution.cpp` - Riivolution XML patch engine
 - `launcher/source/riivolution_config.cpp` - Patch configuration parsing
 - `launcher/source/gamepatches.cpp` - Automatic game compatibility patches
@@ -218,7 +218,7 @@ HAI-Riivolution includes built-in compatibility patches for known problematic ga
 - Prince of Persia (byte ordering fixes)
 - Resident Evil 4 (USB detection)
 - Excite Truck (SD card check bypass)
-- Kirby's Return to Dream Land (SD card check bypass)
+- Kirby's Return to Dream Land (SD card check bypass - see kirby_usb.xml for full patch)
 - Mario Kart Wii (RCE vulnerability patch)
 
 **Behavior**:
@@ -235,6 +235,44 @@ HAI-Riivolution includes built-in compatibility patches for known problematic ga
 ```
 
 User-supplied patches always take precedence over built-in patches.
+
+### Anti-002 Fix
+
+HAI-Riivolution includes the critical anti-002 fix to prevent Error 002 when loading games from USB/SD.
+
+**Implementation**: `launcher/source/launcher.cpp:452-459` (in ApplyBinaryPatches)
+
+**What it does**:
+- Searches for the disc authentication check pattern: `{0x2C000000, 0x48000214, 0x3C608000}`
+- Changes `0x48000214` (unconditional branch) to `0x40820214` (branch if not equal)
+- This allows games to bypass the disc authentication check when loading from USB/SD
+
+**When applied**: During the apploader phase, after each DOL section is loaded into memory
+
+This patch is essential for USB/SD game loading and is applied automatically for all games.
+
+### Kirby's Return to Dream Land Full Patch
+
+For Kirby's Return to Dream Land, an extensive patch (1392 patches per region) is available as separate Riivolution XML files, one per region.
+
+**Files** (75KB each, ~1400 lines):
+- `kirby_suke01.xml` - NTSC-U (USA) version
+- `kirby_sukp01.xml` - PAL (Europe) version
+- `kirby_sukj01.xml` - NTSC-J (Japan) version
+- `kirby_sukk01.xml` - Korea version
+
+**Usage**:
+1. Copy the appropriate region XML to `/riivolution/` on your SD card
+2. HAI-Riivolution will automatically detect and offer it in the patch menu
+3. Enable the "Kirby USB/SD Patch" option before launching the game
+
+**What it does**:
+- Extensive compatibility patch by crediar
+- 1392 memory patches per region
+- Enables full USB/SD loading compatibility
+- Complements the built-in SD card check bypass
+
+**Why separate**: The patches are region-specific and too large to embed in the binary. Providing them as separate XML files gives users full control and ensures only the correct region's patches are applied.
 
 ## Important Build Notes
 
