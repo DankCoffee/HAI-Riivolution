@@ -8,6 +8,7 @@ void Initialise();
 extern "C" {
 	void Init_DebugConsole(const char *ip_str, int port);
 	void Init_DebugConsole_Shutdown();
+	int DebugConsole_GetStatus();
 }
 
 #define DEBUG_NET 1
