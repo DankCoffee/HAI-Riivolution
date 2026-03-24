@@ -5,6 +5,9 @@
 #include "files.h"
 
 #include <string.h>
+#include <unistd.h>
+
+extern devoptab_t *devoptab_list[];
 
 static int socket = -1;
 
@@ -13,23 +16,42 @@ static void InitializeNetwork(const char *ip_str, const int port)
 	int init;
 	if (socket>=0)
 		return;
-	while ((init = net_init()) < 0)
-		;
+	
+	// Retry net_init (can return -EAGAIN initially)
+	int retries = 100;
+	while (retries-- > 0 && (init = net_init()) < 0) {
+		if (init == -EAGAIN) {
+			usleep(10000); // 10ms delay
+			continue;
+		}
+		break;
+	}
+	if (init < 0) {
+		return; // Network init failed
+	}
 
 	// DEBUG: Connect to me
 	socket = net_socket(PF_INET, SOCK_STREAM, 0);
+	if (socket < 0) {
+		return;
+	}
+	
 	struct sockaddr_in address;
 	memset(&address, 0, sizeof(address));
 
 	address.sin_family = PF_INET;
 	address.sin_port = htons(port);
 	int ret = inet_aton(ip_str, &address.sin_addr);
-	if (ret == 0)
+	if (ret == 0) {
+		net_close(socket);
+		socket = -1;
 		return;
+	}
 	if (net_connect(socket, (struct sockaddr*)&address, sizeof(address)) < 0)
 	{
 		net_close(socket);
 		socket = -1;
+		return;
 	}
 }
 
@@ -37,13 +59,18 @@ static ssize_t DebugPrint(struct _reent *r, void *fd, const char *ptr, size_t le
 {
 	File_Log(ptr, len);
 	if (socket >= 0) {
-		ssize_t res = net_send(socket, ptr, len, 0);
-		while (res > 0 && res != len) {
-			ptr += res;
-			len -= res;
-			res = net_send(socket, ptr, len, 0);
+		size_t total_sent = 0;
+		while (total_sent < len) {
+			ssize_t res = net_send(socket, ptr + total_sent, len - total_sent, 0);
+			if (res < 0) {
+				break; // Connection error
+			}
+			if (res == 0) {
+				continue; // Retry
+			}
+			total_sent += res;
 		}
-		return len;
+		return total_sent;
 	}
 	return 0;
 }
