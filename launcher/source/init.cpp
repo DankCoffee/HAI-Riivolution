@@ -217,6 +217,18 @@ void Initialise()
 
 	Init_DebugConsole();
 
+	// Show debug console status
+#if DEBUG_NET
+	int debug_status = DebugConsole_GetStatus();
+	if (debug_status == 1) {
+		printf("Debug: Network logging active (%s:%d)\n", DEBUG_IPADDRESS, DEBUG_PORT);
+	} else if (debug_status == -1) {
+		printf("Debug: Network connection failed - check IP and listener\n");
+	} else {
+		printf("Debug: Network not initialized\n");
+	}
+#endif
+
 	SetupPads(); //check this function for adding gamepad integration
 	InitAudio();
 
