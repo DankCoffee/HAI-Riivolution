@@ -16,6 +16,7 @@
 #include "wdvd.h"
 #include "files.h"
 #include "init.h"
+#include "usb.h"
 
 extern u8 _start[], __RO_END[];
 
@@ -218,6 +219,20 @@ void Initialise()
 
 	SetupPads(); //check this function for adding gamepad integration
 	InitAudio();
+
+	// Initialize USB support (d2x-cios detection)
+	// If d2x-cios is not present, this will default to disc-only mode
+	printf("\n");
+	int usb_ret = USB_Init();
+	if (usb_ret == 0) {
+		printf("USB: USB loading is available!\n");
+		printf("USB: You can load games from USB or SD card\n");
+	} else {
+		printf("USB: Operating in disc-only mode\n");
+		printf("USB: To enable USB loading, ensure d2x-cios is in HAI-IOS firmware\n");
+	}
+	printf("USB: Status - %s\n", USB_GetStatusString());
+	printf("\n");
 
 	SYS_SetResetCallback(CallbackReset);
 	SYS_SetPowerCallback(CallbackPoweroff);

@@ -963,11 +963,11 @@ static int patch_fs_redirect(void* buf, s32 size)
 
 		else if (!replaceFlash && !memcmp(kernel+i, old_dev_fs_open_flash, sizeof(old_dev_fs_open_flash)))
 		{
-		    memcpy(kernel+i, new_dev_fs_open_flash, sizeof(new_dev_fs_open_flash))
+		    memcpy(kernel+i, new_dev_fs_open_flash, sizeof(new_dev_fs_open_flash));
 		    replaceFlash = true;
 		}
 		
-		if (replacemain && replaceFlash)
+		if (replaceMain && replaceFlash)
 		{
 		    return 0;
 		}

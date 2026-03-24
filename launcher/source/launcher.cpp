@@ -449,6 +449,15 @@ static inline void ApplyBinaryPatches(s32 app_section_size)
 //	while ((found = FindInBuffer(app_address, app_section_size, "/dev/net/ssl", 12)))
 //		((u8*)found)[11] = '0'; // "/dev/net/ssl" to "/dev/net/ss0"
 
+	// Anti-002 fix - prevents Error 002 when loading from USB/SD
+	// Patches the disc authentication check
+	// Pattern: {0x2C000000, 0x48000214, 0x3C608000}
+	// Change:  0x48000214 -> 0x40820214 (branch if not equal instead of unconditional branch)
+	static const u32 Anti002Pattern[3] = {0x2C000000, 0x48000214, 0x3C608000};
+	if ((found = FindInBuffer(app_address, app_section_size, Anti002Pattern, sizeof(Anti002Pattern)))) {
+		((u32*)found)[1] = 0x40820214;
+	}
+
 	// prevent NWC from failing to init or shutting down our sockets
 	if (ToMount.size()) {
 		if ((found = FindInBuffer(app_address, app_section_size, SOStartupCode, sizeof(SOStartupCode))))

@@ -41,6 +41,7 @@
 #include <math.h>
 #include <asndlib.h>
 #include <wiiuse/wpad.h>
+#include <wiidrc/wiidrc.h>
 #include "pngu.h"
 #include "FreeTypeGX.h"
 #include "video.h"

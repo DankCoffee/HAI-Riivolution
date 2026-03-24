@@ -1,5 +1,6 @@
 #pragma once
 
+bool PressA();
 void PressHome();
 void CheckShutdown();
 void Initialise();

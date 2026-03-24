@@ -137,9 +137,9 @@ static ipcmessage ProxyMessage;
 static ipcmessage CBMessage;
 typedef s32 (*NANDFS_Func)(const ipcmessage*);
 
+static const struct ProxiIOS::EMU::ISFSFile *FS_Files = (struct ProxiIOS::EMU::ISFSFile*)0x200499A4;
 /*
 // IOS37 specific stuff
-static const struct ProxiIOS::EMU::ISFSFile *FS_Files = (struct ProxiIOS::EMU::ISFSFile*)0x200499A4;
 static NANDFS_Func NAND_Funcs[7] = {
 	// these are thumb functions so add 1 to the pointers
 	(NANDFS_Func)(0x200055A8+1), // handle_fs_open

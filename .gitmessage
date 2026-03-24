@@ -1,0 +1,14 @@
+[COMPONENT/TYPE] Brief description
+
+# Component tags: LAUNCHER, RAWKSD, DIPMODULE, FILEMODULE, MEGAMODULE,
+#                 LIBIOS, LIBWIIDRC, RIIFS, BUILD, DOCS, TOOLS
+#
+# Type tags: FEAT, FIX, REFACTOR, PERF, DOCS, TEST, CHORE, HAXX
+#
+# Examples:
+#   [LAUNCHER/FIX] Fix memory leak in XML parser
+#   [DIPMODULE/FEAT] Add USB keyboard support
+#   [LIBWIIDRC/FIX] Correct analog stick deadzone
+#   [DOCS/CHORE] Update README build instructions
+#
+# Note: Do not include AI tool attributions in commit messages

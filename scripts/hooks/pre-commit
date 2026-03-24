@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# Pre-commit hook for HAI-Riivolution
+# Verifies that the project builds successfully before allowing commit
+#
+
+set -e
+
+echo "Running pre-commit build verification for HAI-Riivolution..."
+echo ""
+
+# Check if Docker is available
+if ! command -v docker &> /dev/null; then
+    echo "ERROR: Docker is not installed or not in PATH"
+    echo "Docker is required to build HAI-Riivolution"
+    exit 1
+fi
+
+# Pull devkitppc container if not present
+if ! docker image inspect devkitpro/devkitppc:latest &> /dev/null; then
+    echo "Pulling devkitpro/devkitppc:latest container..."
+    docker pull devkitpro/devkitppc:latest
+fi
+
+# Get the project root (where .git is located)
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
+echo "Building HAI-Riivolution launcher with devkitPPC..."
+echo "Project directory: $PROJECT_ROOT"
+echo ""
+
+# Run the build in Docker (launcher only - fastest critical component)
+if docker run --rm -v "$PROJECT_ROOT:/mnt" devkitpro/devkitppc:latest \
+    bash -c "cd /mnt/launcher && make clean > /dev/null 2>&1 && make -j\$(nproc) 2>&1 && make clean > /dev/null 2>&1"; then
+    echo ""
+    echo "✓ Build successful - commit allowed"
+    echo ""
+
+    exit 0
+else
+    echo ""
+    echo "✗ Build failed - commit rejected"
+    echo ""
+    echo "Please fix the build errors before committing."
+    echo "To skip this check, use: git commit --no-verify"
+
+    # Clean up (run in Docker to handle any root-owned files)
+    docker run --rm -v "$PROJECT_ROOT:/mnt" devkitpro/devkitppc:latest \
+        bash -c "cd /mnt/launcher && make clean > /dev/null 2>&1" 2>/dev/null || true
+
+    exit 1
+fi
