@@ -6,8 +6,9 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
-extern devoptab_t *devoptab_list[];
+extern const devoptab_t *devoptab_list[];
 
 static int socket = -1;
 
@@ -111,8 +112,8 @@ void Init_DebugConsole(const char *ip_str, int port)
 	if (ip_str)
 		InitializeNetwork(ip_str, port);
 
-	devoptab_list[STD_OUT] = &dotab_netout;
-	devoptab_list[STD_ERR] = &dotab_netout;
+	devoptab_list[STD_OUT] = (const devoptab_t *)&dotab_netout;
+	devoptab_list[STD_ERR] = (const devoptab_t *)&dotab_netout;
 
 	_CPU_ISR_Restore(level);
 
