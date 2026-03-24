@@ -167,6 +167,12 @@ static void IOS_ReloadwithAHB(u32 ios_version);
 
 int Haxx_Init()
 {
+#if DEBUG_HAXX && DEBUG_NET
+	// Initialize debug console early to capture all debug output
+	Init_DebugConsole();
+	printf("Haxx_Init started (DEBUG enabled)\n");
+#endif
+
 	//HAI-IOS fw.img should be statically patched
 	/*
 	if (IOS_GetVersion() != (u32)HAXX_IOS) //skip check
@@ -175,7 +181,7 @@ int Haxx_Init()
 	if (!do_exploit()) //basically skip
 		return -1;
 	*/
-	
+
 	usleep(4000);
 	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
 		return -1;
