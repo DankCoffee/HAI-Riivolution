@@ -120,20 +120,23 @@ void Init_DebugConsole(const char *ip_str, int port)
 		// Print connection status BEFORE redirecting stdout
 		if (socket >= 0) {
 			printf("DEBUG: Network connected to %s:%d\n", ip_str, port);
+			// Only redirect stdout if network connection succeeded
+			devoptab_list[STD_OUT] = (const devoptab_t *)&dotab_netout;
+			devoptab_list[STD_ERR] = (const devoptab_t *)&dotab_netout;
 		} else {
-			printf("DEBUG: Network connection FAILED to %s:%d (check IP, run nc -l -p %d)\n", ip_str, port, port);
+			printf("DEBUG: Network connection FAILED to %s:%d (output to screen only)\n", ip_str, port);
 		}
 	}
 
-	devoptab_list[STD_OUT] = (const devoptab_t *)&dotab_netout;
-	devoptab_list[STD_ERR] = (const devoptab_t *)&dotab_netout;
-
 	_CPU_ISR_Restore(level);
 
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
-
-	printf("Debug Console Connected\n");
+	if (socket >= 0) {
+		setvbuf(stdout, NULL, _IONBF, 0);
+		setvbuf(stderr, NULL, _IONBF, 0);
+		printf("Debug Console Connected (network)\n");
+	} else {
+		printf("Debug Console: Screen output only\n");
+	}
 }
 
 void Init_DebugConsole_Shutdown() {
