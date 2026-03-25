@@ -157,6 +157,11 @@ void Initialise()
 		WPAD_Init();
 		//TODO: check for and initialize the Wii U gamepad here
 		printf("\n\n");
+		printf("DEBUG: IOS_GetVersion() = %d (0x%08X)\n", IOS_GetVersion(), IOS_GetVersion());
+		printf("DEBUG: IOS_GetRevision() = %d\n", IOS_GetRevision());
+		printf("DEBUG: HAXX_IOS = 0x%016llX\n", HAXX_IOS);
+		printf("DEBUG: (u32)HAXX_IOS = %d (0x%08X)\n", (u32)HAXX_IOS, (u32)HAXX_IOS);
+		printf("DEBUG: HAXX_IOS_MINIMUM = %d, HAXX_IOS_MAXIMUM = %d\n", HAXX_IOS_MINIMUM, HAXX_IOS_MAXIMUM);
 		if (is_wiiu) {
 			printf("IOS Error. Please try relaunching this program from HBC.\n");
 			PressHome();
