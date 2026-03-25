@@ -1729,49 +1729,7 @@ static bool do_exploit()
 			//seeprom_write(null_key, 0x74, 16);
 		}
 
-		//not needed in HAI-IOS
-		//instead statically apply all patches
-		/*
-		if (!patch_failed)
-		{
-			new_ios = prepare_new_kernel(IOS_DEST);
-			patch_failed = !new_ios;
-			if (patch_failed)
-				printf("Failed to prepare new kernel\n");
-		}
-		*/
-
-		/* also skip
-		if (!patch_failed)
-		{
-			shutdown_for_reload();
-			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
-			free(new_ios);
-			es_fd = 0;
-			recover_from_reload((u32)HAXX_IOS);
-		*/
-#if DEBUG_HAXX && DEBUG_NET
-			Init_DebugConsole();
-#endif
-			/*
-			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
-				patch_failed = 1;
-			} else
-				printf("Loaded patched IOS\n");
-			*/
-		//}
-
-		/*
-		if (!patch_failed)
-			patch_failed = !do_patch(NAND_PERMS_INDEX);
-		*/
-
-		// if sneek was found, we need to reload IOS again before doing anything else
-		// to make sure we have clean modules
-		//patch_failed |= sneek; disable check
-
-		/*
+		// Load SDHC modules FIRST - required for ES module access
 		if (!patch_failed)
 		{
 			usleep(4000);
@@ -1787,38 +1745,14 @@ static bool do_exploit()
 				printf("SDHC loaded\n");
 		}
 
-#ifndef YARR
-		// Signature check and DVD switch patches
-		if (!patch_failed) {
-			if (!do_sig_check_patch()) {
-				patch_failed = 1;
-				printf("Signature check patch FAILED\n");
-			} else {
-				printf("Signature check patch OK\n");
-			}
+		// something that might break if removed
+		if (sneek) {
+			printf("SNEEK detected, reloading IOS...\n");
+			if (es_fd >=0 )
+				IOS_Close(es_fd);
+			IOS_ReloadIOS((u32)HAXX_IOS);
+			return do_exploit();
 		}
-		if (!patch_failed) {
-			if (!do_patch(DVD_SWITCH_INDEX)) {
-				patch_failed = 1;
-				printf("DVD switch patch FAILED\n");
-			} else {
-				printf("DVD switch patch OK\n");
-			}
-		}
-#else
-		// kill sig check
-		if (*(u16*)0x93A752E6 == 0x2007) {
-			*(u16*)0x93A752E6 = 0x2000;
-			DCFlushRange((void*)0x93A752E0, 32);
-		}
-		// use original IOS version
-		if (IOS_GetVersion() > 100) {
-			u32 ios = *MEM_IOSVERSION;
-			ios = ((ios&0xFFFF0000)-(100<<16))|(ios&0xFFFF);
-			*MEM_IOSVERSION = ios;
-			DCFlushRange(MEM_IOSVERSION, 32);
-		}
-#endif
 		/*
 		if (sneek) {
 			printf("SNEEK found, have to reboot again *sigh*\n");
