@@ -1788,10 +1788,23 @@ static bool do_exploit()
 		}
 
 #ifndef YARR
-		if (!patch_failed)
-			patch_failed = !do_sig_check_patch();
-		if (!patch_failed)
-			patch_failed = !do_patch(DVD_SWITCH_INDEX);
+		// Signature check and DVD switch patches
+		if (!patch_failed) {
+			if (!do_sig_check_patch()) {
+				patch_failed = 1;
+				printf("Signature check patch FAILED\n");
+			} else {
+				printf("Signature check patch OK\n");
+			}
+		}
+		if (!patch_failed) {
+			if (!do_patch(DVD_SWITCH_INDEX)) {
+				patch_failed = 1;
+				printf("DVD switch patch FAILED\n");
+			} else {
+				printf("DVD switch patch OK\n");
+			}
+		}
 #else
 		// kill sig check
 		if (*(u16*)0x93A752E6 == 0x2007) {
