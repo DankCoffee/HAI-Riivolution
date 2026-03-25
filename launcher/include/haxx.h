@@ -76,8 +76,13 @@ void RunBootmii();
 int seeprom_write(const void *src, unsigned int offset, unsigned int size);
 int seeprom_read(void *dst, unsigned int offset, unsigned int size);
 
+// IOS 37 for retail Wii
 #define HAXX_IOS 0x0000000100000025ULL
 #define HAXX_IOS_MAXIMUM 5919
 #define HAXX_IOS_MINIMUM 3869
+
+// IOS 56 (HAI-IOS) for Wii U
+#define HAI_IOS 0x0000000100000038ULL
+#define HAI_IOS_MINIMUM 4500
 
 //#define DEBUG_HAXX 1

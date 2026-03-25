@@ -167,6 +167,10 @@ static void IOS_ReloadwithAHB(u32 ios_version);
 
 int Haxx_Init()
 {
+	u32 ios_version = IOS_GetVersion();
+	u16 ios_revision = IOS_GetRevision();
+	int is_hai_ios = (ios_version == (u32)HAI_IOS);
+
 	//HAI-IOS fw.img should be statically patched
 	/*
 	if (IOS_GetVersion() != (u32)HAXX_IOS) //skip check
@@ -175,29 +179,36 @@ int Haxx_Init()
 	if (!do_exploit()) //basically skip
 		return -1;
 	*/
-	
-	usleep(4000);
-	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
-		return -1;
 
-	printf("Riiv filemodule loaded\n");
+	// On HAI-IOS (Wii U), modules are pre-loaded in firmware
+	// On retail Wii (IOS 37), load modules dynamically via exploit
+	if (!is_hai_ios) {
+		usleep(4000);
+		if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
+			return -1;
 
-	//keep
-	usleep(4000);
-	if (load_module_code(dipmodule_elf, dipmodule_elf_end) <= 0)
-		return -1;
+		printf("Riiv filemodule loaded\n");
 
-	printf("Riiv dipmodule loaded\n");
+		//keep
+		usleep(4000);
+		if (load_module_code(dipmodule_elf, dipmodule_elf_end) <= 0)
+			return -1;
 
-	usleep(4000);
+		printf("Riiv dipmodule loaded\n");
+
+		usleep(4000);
 
 #ifdef DEBUGGER
-	if (load_module_code(megamodule_elf, megamodule_elf_end) <= 0)
-		return -1;
+		if (load_module_code(megamodule_elf, megamodule_elf_end) <= 0)
+			return -1;
 
-	printf("Riiv megamodule loaded\n");
-	usleep(4000);
+		printf("Riiv megamodule loaded\n");
+		usleep(4000);
 #endif
+	} else {
+		// HAI-IOS: Modules are pre-loaded, just verify they're available
+		printf("HAI-IOS detected (IOS%d rev %d), modules pre-loaded\n", ios_version, ios_revision);
+	}
 
 //	if (File_Init()>=0 && File_Fat_Mount(SD_DISK, "sd")>=0)
 //		RunBootmii();

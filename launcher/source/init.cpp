@@ -152,52 +152,66 @@ void Initialise()
 
 	InitVideo();
 
+	// Determine which IOS to use based on platform
+	u64 target_ios = is_wiiu ? HAI_IOS : HAXX_IOS;
+	u16 ios_min = is_wiiu ? HAI_IOS_MINIMUM : HAXX_IOS_MINIMUM;
+	u16 ios_max = is_wiiu ? 65535 : HAXX_IOS_MAXIMUM; // No max for HAI-IOS
+
 	if (Haxx_Init() < 0) {
 		int approach = 0;
 		WPAD_Init();
 		//TODO: check for and initialize the Wii U gamepad here
 		printf("\n\n");
-		printf("DEBUG: IOS_GetVersion() = %d (0x%08X)\n", IOS_GetVersion(), IOS_GetVersion());
-		printf("DEBUG: IOS_GetRevision() = %d\n", IOS_GetRevision());
-		printf("DEBUG: HAXX_IOS = 0x%016llX\n", HAXX_IOS);
-		printf("DEBUG: (u32)HAXX_IOS = %d (0x%08X)\n", (u32)HAXX_IOS, (u32)HAXX_IOS);
-		printf("DEBUG: HAXX_IOS_MINIMUM = %d, HAXX_IOS_MAXIMUM = %d\n", HAXX_IOS_MINIMUM, HAXX_IOS_MAXIMUM);
 		if (is_wiiu) {
-			printf("IOS Error. Please try relaunching this program from HBC.\n");
+			// Wii U: Check for HAI-IOS
+			if (IOS_GetVersion() != (u32)HAI_IOS) {
+				printf("HAI-IOS (IOS56) is not loaded. Please launch from HBC.\n");
+				PressHome();
+				exit(0);
+			} else if (IOS_GetRevision() < HAI_IOS_MINIMUM) {
+				printf("HAI-IOS revision is too old. Please update HAI-IOS.\n");
+				PressHome();
+				exit(0);
+			}
+			// Haxx_Init failed but IOS check passed - modules issue
+			printf("Haxx_Init() failed - check that IOS modules are properly built and embedded\n");
 			PressHome();
 			exit(0);
-		} else if (IOS_GetVersion() != (u32)HAXX_IOS) {
-			printf("\tIOS%d does not seem to be installed on your system.\n\tIt's perfectly safe to install it; do you want to do so now?\n", (u32)HAXX_IOS);
-			if (!PressA())
-				exit(0);
-			approach = INSTALL_APPROACH_UPDATE;
-		} else if (IOS_GetRevision() < HAXX_IOS_MINIMUM) {
-			printf("\tIOS%d must be updated to continue.\n\tIt's perfectly safe to update it; do you want to do so now?\n", (u32)HAXX_IOS);
-			if (!PressA())
-				exit(0);
-			approach = INSTALL_APPROACH_UPDATE;
-		} else if (IOS_GetRevision() > HAXX_IOS_MAXIMUM) {
-			// Either cIOScrap (which will make the downgrade exploit fail) or a future update
-			printf("\tIOS%d must be downgraded to continue. Do you want to attempt this now?\n", (u32)HAXX_IOS);
-			if (!PressA())
-				exit(0);
-			approach = INSTALL_APPROACH_DOWNGRADE;
 		} else {
-			// Proper version, but a patch failed. RawkSD patcher or DOP-IOS or something.
-			printf("\tIOS%d must be reinstalled to continue.\n\tThis is a perfectly safe to do; do you want to reinstall it now?\n", (u32)HAXX_IOS);
-			if (!PressA())
-				exit(0);
-			approach = INSTALL_APPROACH_UPDATE;
+			// Retail Wii: Check for IOS 37
+			if (IOS_GetVersion() != (u32)HAXX_IOS) {
+				printf("\tIOS%d does not seem to be installed on your system.\n\tIt's perfectly safe to install it; do you want to do so now?\n", (u32)HAXX_IOS);
+				if (!PressA())
+					exit(0);
+				approach = INSTALL_APPROACH_UPDATE;
+			} else if (IOS_GetRevision() < HAXX_IOS_MINIMUM) {
+				printf("\tIOS%d must be updated to continue.\n\tIt's perfectly safe to update it; do you want to do so now?\n", (u32)HAXX_IOS);
+				if (!PressA())
+					exit(0);
+				approach = INSTALL_APPROACH_UPDATE;
+			} else if (IOS_GetRevision() > HAXX_IOS_MAXIMUM) {
+				// Either cIOScrap (which will make the downgrade exploit fail) or a future update
+				printf("\tIOS%d must be downgraded to continue. Do you want to attempt this now?\n", (u32)HAXX_IOS);
+				if (!PressA())
+					exit(0);
+				approach = INSTALL_APPROACH_DOWNGRADE;
+			} else {
+				// Proper version, but a patch failed. RawkSD patcher or DOP-IOS or something.
+				printf("\tIOS%d must be reinstalled to continue.\n\tThis is a perfectly safe to do; do you want to reinstall it now?\n", (u32)HAXX_IOS);
+				if (!PressA())
+					exit(0);
+				approach = INSTALL_APPROACH_UPDATE;
+			}
 		}
 
 		int ret = 0;
 		Installer_Initialize();
 		switch (approach) {
 			case INSTALL_APPROACH_UPDATE:
-				ret = Install(HAXX_IOS, /*HAXX_IOS_MAXIMUM*/5663, false);
+				ret = Install(target_ios, ios_max, false);
 				break;
 			case INSTALL_APPROACH_DOWNGRADE:
-				ret = Install(HAXX_IOS, /*HAXX_IOS_MAXIMUM*/5663, true);
+				ret = Install(target_ios, ios_max, true);
 				break;
 			default:
 				exit(0);
