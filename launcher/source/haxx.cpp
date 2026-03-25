@@ -217,6 +217,22 @@ int Haxx_Init()
 		printf("HAI-IOS detected (IOS%d rev %d), modules pre-loaded\n", ios_version, ios_revision);
 	}
 
+#ifdef BABELFISH
+	WPAD_Init();
+	printf("Press home to exit\n");
+	while(1) {
+
+		WPAD_ScanPads();
+		u32 pressed = WPAD_ButtonsDown(0)|WPAD_ButtonsDown(1);
+		if ( pressed & WPAD_BUTTON_HOME )
+		{
+			printf("Exiting...");
+			exit(0);
+		}
+		VIDEO_WaitVSync();
+	}
+#endif
+
 	printf("Haxx_Init: returning 0 (success)\n");
 	return 0;
 }
