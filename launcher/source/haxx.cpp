@@ -173,14 +173,22 @@ int Haxx_Init()
 	printf("Haxx_Init started (DEBUG enabled)\n");
 #endif
 
-	//HAI-IOS fw.img should be statically patched
-	/*
-	if (IOS_GetVersion() != (u32)HAXX_IOS) //skip check
+	printf("Haxx_Init: Current IOS = %d\n", IOS_GetVersion());
+	
+	// Reload to IOS 37 if not already on it
+	if (IOS_GetVersion() != (u32)HAXX_IOS) {
+		printf("Haxx_Init: Reloading to IOS 37...\n");
 		IOS_ReloadwithAHB((u32)HAXX_IOS);
+		printf("Haxx_Init: After reload - IOS = %d\n", IOS_GetVersion());
+	}
 
-	if (!do_exploit()) //basically skip
+	// Run exploit to enable custom module loading
+	printf("Haxx_Init: Running exploit...\n");
+	if (!do_exploit()) {
+		printf("Haxx_Init: Exploit FAILED!\n");
 		return -1;
-	*/
+	}
+	printf("Haxx_Init: Exploit succeeded\n");
 
 	usleep(4000);
 	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
@@ -205,8 +213,30 @@ int Haxx_Init()
 	usleep(4000);
 #endif
 
-//	if (File_Init()>=0 && File_Fat_Mount(SD_DISK, "sd")>=0)
-//		RunBootmii();
+	// Initialize ISFS and load SDHC module for SDHC card support
+	printf("Haxx_Init: Initializing ISFS...\n");
+	if (ISFS_Initialize() >= 0) {
+		printf("Haxx_Init: ISFS initialized\n");
+		int file_fd = File_Init();
+		if (file_fd >= 0) {
+			printf("Haxx_Init: File system initialized (fd=%d)\n", file_fd);
+			// Load SDHC module from various IOS versions
+			printf("Haxx_Init: Loading SDHC module...\n");
+			int sdhc = load_sdhc_module(0x000000010000003Allu) || 
+			           load_sdhc_module(0x0000000100000038llu) ||
+			           load_sdhc_module(0x000000010000003Dllu) || 
+			           load_sdhc_module(0x0000000100000050llu);
+			if (!sdhc) sdhc = load_sdhc_module(HAXX_IOS);
+			if (sdhc)
+				printf("Haxx_Init: SDHC module loaded\n");
+			else
+				printf("Haxx_Init: WARNING - SDHC module not loaded\n");
+		} else {
+			printf("Haxx_Init: File_Init() failed (%d)\n", file_fd);
+		}
+	} else {
+		printf("Haxx_Init: ISFS_Initialize() failed\n");
+	}
 
 #ifdef BABELFISH
 	WPAD_Init();
