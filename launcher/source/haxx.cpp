@@ -65,6 +65,7 @@ extern vector<int> ToMount;
 #endif
 
 static int load_module_code(u8 *module_code, u8* module_end);
+static int load_sdhc_module(u64 title_ios);
 static bool do_exploit();
 
 static inline u32 be32(const u8 *p)
