@@ -152,24 +152,39 @@ void Initialise()
 
 	InitVideo();
 
+	// Debug: Print platform and IOS info
+	printf("\n=== Platform Detection ===\n");
+	printf("is_wiiu = %d\n", is_wiiu);
+	printf("IOS_GetVersion() = %d (0x%08X)\n", IOS_GetVersion(), IOS_GetVersion());
+	printf("IOS_GetRevision() = %d\n", IOS_GetRevision());
+	printf("HAXX_IOS = 0x%016llX (%d)\n", HAXX_IOS, (u32)HAXX_IOS);
+	printf("HAI_IOS = 0x%016llX (%d)\n", HAI_IOS, (u32)HAI_IOS);
+	printf("==========================\n\n");
+
 	// Determine which IOS to use based on platform
 	u64 target_ios = is_wiiu ? HAI_IOS : HAXX_IOS;
 	u16 ios_min = is_wiiu ? HAI_IOS_MINIMUM : HAXX_IOS_MINIMUM;
 	u16 ios_max = is_wiiu ? 65535 : HAXX_IOS_MAXIMUM; // No max for HAI-IOS
 
-	if (Haxx_Init() < 0) {
+	printf("Haxx_Init() called...\n");
+	int haxx_ret = Haxx_Init();
+	printf("Haxx_Init() returned %d\n\n", haxx_ret);
+
+	if (haxx_ret < 0) {
 		int approach = 0;
 		WPAD_Init();
 		//TODO: check for and initialize the Wii U gamepad here
 		printf("\n\n");
 		if (is_wiiu) {
 			// Wii U: Check for HAI-IOS
+			printf("Wii U detected, checking for HAI-IOS...\n");
 			if (IOS_GetVersion() != (u32)HAI_IOS) {
-				printf("HAI-IOS (IOS56) is not loaded. Please launch from HBC.\n");
+				printf("ERROR: HAI-IOS (IOS56) is not loaded. Current IOS: %d\n", IOS_GetVersion());
+				printf("Please launch from HBC with HAI-IOS firmware.\n");
 				PressHome();
 				exit(0);
 			} else if (IOS_GetRevision() < HAI_IOS_MINIMUM) {
-				printf("HAI-IOS revision is too old. Please update HAI-IOS.\n");
+				printf("HAI-IOS revision is too old (%d < %d). Please update HAI-IOS.\n", IOS_GetRevision(), HAI_IOS_MINIMUM);
 				PressHome();
 				exit(0);
 			}
