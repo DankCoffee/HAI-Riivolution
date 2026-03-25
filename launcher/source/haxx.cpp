@@ -168,12 +168,6 @@ static void IOS_ReloadwithAHB(u32 ios_version);
 
 int Haxx_Init()
 {
-#if DEBUG_HAXX && DEBUG_NET
-	// Initialize debug console early to capture all debug output
-	Init_DebugConsole();
-	printf("Haxx_Init started (DEBUG enabled)\n");
-#endif
-
 	printf("Haxx_Init: Current IOS = %d\n", IOS_GetVersion());
 	
 	// Reload to IOS 37 if not already on it
@@ -190,6 +184,12 @@ int Haxx_Init()
 		return -1;
 	}
 	printf("Haxx_Init: Exploit succeeded\n");
+
+	// Initialize debug console AFTER exploit succeeds (system is stable)
+#if DEBUG_HAXX && DEBUG_NET
+	Init_DebugConsole();
+	printf("Haxx_Init: Debug console initialized\n");
+#endif
 
 	usleep(4000);
 	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
