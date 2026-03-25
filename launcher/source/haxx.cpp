@@ -1705,13 +1705,14 @@ static bool do_exploit()
 
 		if (sneek==1)
 		{
-			/*
+			// Enable NAND permissions patch - REQUIRED for custom module loading
 			if (!do_patch(NAND_PERMS_INDEX))
 			{
 				patch_failed = 1;
-				printf("NAND Permissions patch failed\n");
+				printf("NAND Permissions patch FAILED\n");
+			} else {
+				printf("NAND Permissions patch OK\n");
 			}
-			*/
 			sneek = 0;
 		}
 
