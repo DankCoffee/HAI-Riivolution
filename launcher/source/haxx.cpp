@@ -1272,7 +1272,7 @@ static int load_module_file(s32 fd, const char *filename)
 		0x68, 0x4B, 0x2B, 0x06, 0xD1, 0x0C, 0x68, 0x8B, 0x2B, 0x00,
 		0xD1, 0x09, 0x68, 0xC8, 0x68, 0x42, 0x23, 0xA9, 0x00, 0x9B,
 		0x42, 0x9A, 0xD1, 0x03};
-	
+
 	const u8 retained_patch[15] = {0x49, 0x01, 0x47, 0x88, 0x46, 0xC0, 0xE0, 0x01, 0x12, 0xFF, 0xFE, 0x00, 0x22, 0x00, 0x23};
 
 	const u16 load_module[12] =
@@ -1291,15 +1291,19 @@ static int load_module_file(s32 fd, const char *filename)
 	s32 ret=1;
 	ioctlv vec;
 
+	printf("load_module_file: Starting search for ES module pattern...\n");
 	for (addr=ES_MODULE_START;addr < ES_MODULE_START+ES_MODULE_SIZE-sizeof(old_es_code);addr++) {
 		if (!memcmp(addr, old_es_code, 15) || !memcmp(addr, retained_patch, sizeof(retained_patch)) || !memcmp(addr, load_module, 15)) {
+			printf("load_module_file: Found pattern at %p\n", addr);
 
 			memcpy(temp, addr, 24); //store current code in temporary buffer
 			memcpy(addr, load_module, sizeof(load_module)); //load in new module
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
+			printf("load_module_file: Calling IOS_Ioctlv(fd=%d)...\n", fd);
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
+			printf("load_module_file: IOS_Ioctlv returned %d\n", ret);
 
 			// restore the old code and flush
 			memcpy(addr, temp, sizeof(load_module));
@@ -1313,6 +1317,10 @@ static int load_module_file(s32 fd, const char *filename)
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
 			break;
 		}
+	}
+	
+	if (ret != 0) {
+		printf("load_module_file: FAILED - pattern not found or IOS_Ioctlv failed\n");
 	}
 
 	return !ret;
