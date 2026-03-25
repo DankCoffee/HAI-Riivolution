@@ -224,25 +224,6 @@ int Haxx_Init()
 //	if (File_Init()>=0 && File_Fat_Mount(SD_DISK, "sd")>=0)
 //		RunBootmii();
 
-#ifdef BABELFISH
-	WPAD_Init();
-	printf("Press home to exit\n");
-	while(1) {
-
-		WPAD_ScanPads();
-		u32 pressed = WPAD_ButtonsDown(0)|WPAD_ButtonsDown(1);
-		if ( pressed & WPAD_BUTTON_HOME )
-		{
-			printf("Exiting...");
-			exit(0);
-		}
-		VIDEO_WaitVSync();
-	}
-#endif
-
-	return 0;
-}
-
 // this function probably shouldn't be here
 #define DEFAULT() if (!hasdefault) { ret = File_SetDefault(ret); if (ret >= 0) hasdefault = true; }
 void Haxx_Mount(vector<int>* mounted)
