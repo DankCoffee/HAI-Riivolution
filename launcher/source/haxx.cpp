@@ -693,8 +693,9 @@ int disable_mem2_protection(s32 fd)
 		0xE3A00065, // mov r0, #101 (so we know it worked)
 		0xE59F2000, // ldr r2, return address in ES
 		0xE12FFF12, // bx r2
-		//0x20107084+1, // ret_address IOS37v3869
-		//0x2010710C+1, // ret_address IOS37v5662/5663
+		0x20107084+1, // ret_address IOS37v3869
+		0x2010710C+1, // ret_address IOS37v5662/5663
+		0x20107370+1, // ret_address IOS37v5919
 	};
 
 
@@ -1228,11 +1229,15 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		{
 			u32 junk;
 			printf("Found ES_SYSCALL_DEVICE_OPEN at 0x%08X\n", (u32)addr);
+			u32 memboot_addr = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
+			u32 kernel_addr = (u32)new_ios & 0x1FFFFFFF;
+			printf("load_patched_ios: es_syscall_ios_memboot=0x%08X, kernel_ptr=0x%08X\n", memboot_addr, kernel_addr);
+			printf("load_patched_ios: ios_version=%d\n", ios_version);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
-			MEM1_BASE_UNCACHED[4] = (u32)addr + 0x138 - 0x939F0000 + 0x20100000; // es_syscall_ios_memboot
-			MEM1_BASE_UNCACHED[5] = (u32)new_ios & 0x1FFFFFFF; // kernel path name
-			//printf("%08X %08X\n", MEM1_BASE_UNCACHED[4], MEM1_BASE_UNCACHED[5]);
+			MEM1_BASE_UNCACHED[4] = memboot_addr; // es_syscall_ios_memboot
+			MEM1_BASE_UNCACHED[5] = kernel_addr; // kernel path name
+			printf("MEM1_BASE_UNCACHED[3..5] = %08X %08X %08X\n", MEM1_BASE_UNCACHED[3], MEM1_BASE_UNCACHED[4], MEM1_BASE_UNCACHED[5]);
 
 			addr[0] = 0xE3A02001; // mov r2, #1
 			addr[1] = 0xE12FFF12; // bx r2
@@ -1245,9 +1250,11 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 			//printf("IOS returned %d\n", IOS_Ioctlv(fd, 0x0c, 0, 1, &vec));
 			//printf("Owned titles: %d\n", junk);
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
+			printf("IOS_IoctlvRebootBackground returned (should not happen)\n");
 			return;
 		}
 	}
+	printf("load_patched_ios: ES_SYSCALL_DEVICE_OPEN not found!\n");
 }
 
 static int load_module_file(s32 fd, const char *filename)
