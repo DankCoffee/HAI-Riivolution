@@ -1215,14 +1215,12 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		0x4B02, // ldr r3, os_ios_memboot
 		0x4798, // blx r3
 		0x46C0, // nop
-/*
 		0x0000, // HAXX_IOS_VERSION
 		0x0000,
 		0x0000, // es_syscall_ios_memboot
 		0x0000,
 		0x0000, // kernel_ptr
 		0x0000
-*/
 	};
 
 	ioctlv vec;
@@ -1232,38 +1230,20 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
 			u32 junk;
-			u32 memboot_addr = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
-			u32 kernel_addr = ((u32)new_ios) & 0x1FFFFFFF;
-			printf("Reload: ver=%d, memboot=%X, kernel=%X\n", ios_version, memboot_addr, kernel_addr);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
-			MEM1_BASE_UNCACHED[4] = memboot_addr;
-			MEM1_BASE_UNCACHED[5] = kernel_addr;
-			DCFlushRange(MEM1_BASE_UNCACHED, 32);
-			printf("Patching ES at %X...\n", (u32)addr);
+			MEM1_BASE_UNCACHED[4] = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
+			MEM1_BASE_UNCACHED[5] = (u32)new_ios & 0x1FFFFFFF;
 			addr[0] = 0xE3A02001;
 			addr[1] = 0xE12FFF12;
 			DCFlushRange(addr, 8);
 			vec.data = &junk;
 			vec.len = sizeof(junk);
 			*MEM1_IOSVERSION = 0x00020000;
-			DCFlushRange(MEM1_IOSVERSION, 4);
-			printf("Taking the plunge...\n");
-			// Try normal IOS_Ioctlv first to test
-			s32 ret = IOS_Ioctlv(fd, 0x0C, 0, 1, &vec);
-			printf("Ioctlv returned %d, junk=%d\n", ret, junk);
-			if (ret < 0) {
-				printf("Reload failed with error %d\n", ret);
-				return;
-			}
-			// If we get here, reload didn't work - try RebootBackground
-			printf("Trying RebootBackground...\n");
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
-			printf("RebootBackground returned %d\n", junk);
 			return;
 		}
 	}
-	printf("ES_SYSCALL_DEVICE_OPEN not found\n");
 }
 
 static int load_module_file(s32 fd, const char *filename)
@@ -1712,20 +1692,9 @@ static bool do_exploit()
 
 		if (!patch_failed)
 		{
-			printf("Reloading to patched IOS...\n");
-			printf("new_ios=%p, rev=%d\n", new_ios, ios_rev);
-			shutdown_for_reload();
-			load_patched_ios(es_fd, new_ios, ios_rev + 1);
+			// Skip kernel reload - use base exploit only
+			printf("Skipping kernel reload\n");
 			free(new_ios);
-			es_fd = 0;
-			printf("Waiting for reload...\n");
-			recover_from_reload((u32)HAXX_IOS);
-			printf("Reload done: IOS %d (rev %d)\n", IOS_GetVersion(), IOS_GetRevision());
-			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("Reload FAILED\n");
-				patch_failed = 1;
-			} else
-				printf("Reload OK\n");
 		}
 
 		if (!patch_failed)
