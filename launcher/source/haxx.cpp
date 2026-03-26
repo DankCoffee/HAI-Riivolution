@@ -1233,18 +1233,21 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		{
 			u32 junk;
 			u32 memboot_addr = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
-			u32 kernel_addr = (u32)new_ios & 0x1FFFFFFF;
+			u32 kernel_addr = ((u32)new_ios) & 0x1FFFFFFF;
 			printf("Reload: ver=%d, memboot=%X, kernel=%X\n", ios_version, memboot_addr, kernel_addr);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
 			MEM1_BASE_UNCACHED[4] = memboot_addr;
 			MEM1_BASE_UNCACHED[5] = kernel_addr;
+			DCFlushRange(MEM1_BASE_UNCACHED, 32);
+			printf("Patching ES at %X...\n", (u32)addr);
 			addr[0] = 0xE3A02001;
 			addr[1] = 0xE12FFF12;
 			DCFlushRange(addr, 8);
 			vec.data = &junk;
 			vec.len = sizeof(junk);
 			*MEM1_IOSVERSION = 0x00020000;
+			DCFlushRange(MEM1_IOSVERSION, 4);
 			printf("Taking the plunge...\n");
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
 			printf("Ioctlv returned %d\n", junk);
@@ -1701,6 +1704,7 @@ static bool do_exploit()
 		if (!patch_failed)
 		{
 			printf("Reloading to patched IOS...\n");
+			printf("new_ios=%p, rev=%d\n", new_ios, ios_rev);
 			shutdown_for_reload();
 			load_patched_ios(es_fd, new_ios, ios_rev + 1);
 			free(new_ios);
