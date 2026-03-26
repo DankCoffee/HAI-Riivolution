@@ -1716,11 +1716,7 @@ static bool do_exploit()
 
 		if (sneek==1)
 		{
-			if (!do_patch(NAND_PERMS_INDEX))
-			{
-				patch_failed = 1;
-				printf("NAND Permissions patch failed\n");
-			}
+			// Skip NAND perms patch here - it will be done after IOS reload
 			sneek = 0;
 		}
 
@@ -1765,9 +1761,10 @@ static bool do_exploit()
 				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
 			} else
-				printf("Loaded patched IOS\n");
+				printf("Loaded patched IOS rev %d\n", IOS_GetRevision());
 		}
 
+		// Now patch NAND permissions in the reloaded IOS
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
 
