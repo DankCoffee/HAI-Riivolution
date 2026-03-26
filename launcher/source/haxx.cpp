@@ -1179,15 +1179,15 @@ static void* prepare_new_kernel(u64 title)
 	// Apply patches to IOS 37 kernel
 	printf("Patching kernel (size=%d)...\n", size);
 	int patch_result = 0;
-	if (!patch_mem2(kernel_blob, size)) { printf("patch_mem2 failed\n"); patch_result = 1; }
-	if (!patch_ios37_sd_load(kernel_blob, size)) { printf("patch_ios37_sd_load failed\n"); patch_result = 1; }
-	if (!patch_gpio_stm(kernel_blob, size)) { printf("patch_gpio_stm failed\n"); patch_result = 1; }
-	if (!patch_fs_redirect(kernel_blob, size)) { printf("patch_fs_redirect failed\n"); patch_result = 1; }
-	if (!patch_prng_perms(kernel_blob, size)) { printf("patch_prng_perms failed\n"); patch_result = 1; }
+	if (!patch_mem2(kernel_blob, size)) { printf("patch_mem2 FAILED\n"); patch_result = 1; } else { printf("patch_mem2 OK\n"); }
+	if (!patch_ios37_sd_load(kernel_blob, size)) { printf("patch_ios37_sd_load FAILED\n"); patch_result = 1; } else { printf("patch_ios37_sd_load OK\n"); }
+	if (!patch_gpio_stm(kernel_blob, size)) { printf("patch_gpio_stm FAILED\n"); patch_result = 1; } else { printf("patch_gpio_stm OK\n"); }
+	if (!patch_fs_redirect(kernel_blob, size)) { printf("patch_fs_redirect FAILED\n"); patch_result = 1; } else { printf("patch_fs_redirect OK\n"); }
+	if (!patch_prng_perms(kernel_blob, size)) { printf("patch_prng_perms FAILED\n"); patch_result = 1; } else { printf("patch_prng_perms OK\n"); }
 	
 	if (patch_result)
 	{
-		printf("Couldn't patch kernel\n");
+		printf("Kernel patching FAILED\n");
 		free(kernel_blob);
 		kernel_blob = NULL;
 	}
