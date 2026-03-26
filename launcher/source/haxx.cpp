@@ -28,7 +28,7 @@ using std::vector;
 #define MEM2_PROT           0x0D8B420A
 #define HW_GPIO1OUT         0x0D8000E0
 #define HW_GPIO1IN          0x0D8000E8
-#define IOS_DEST            0x0000000100000038ULL // IOS 56
+#define IOS_DEST	    0x0000000100000038ULL #IOS 56
 
 #include "root_dat.h"
 
@@ -169,13 +169,13 @@ int Haxx_Init()
 {
 	u32 ios_version = IOS_GetVersion();
 	u16 ios_revision = IOS_GetRevision();
-	int is_hai_ios = (ios_version == (u32)HAI_IOS);
+	int is_wiiu = (ios_version >= 0x20000000 || ios_version == (u32)HAI_IOS);
 
-	printf("Haxx_Init: ios_version=%d, ios_revision=%d, is_hai_ios=%d\n", ios_version, ios_revision, is_hai_ios);
+	printf("Haxx_Init: ios_version=%d, ios_revision=%d, is_wiiu=%d\n", ios_version, ios_revision, is_wiiu);
 
 	// On HAI-IOS (Wii U), modules are pre-loaded in firmware
-	// On retail Wii (IOS 37), load modules dynamically via exploit
-	if (!is_hai_ios) {
+	// On retail Wii (IOS 37), run the exploit to enable module loading
+	if (!is_wiiu) {
 		// Retail Wii: Need to reload to IOS 37 for the exploit
 		if (ios_version != (u32)HAXX_IOS) {
 			printf("Haxx_Init: Reloading from IOS%d to IOS37 for exploit\n", ios_version);
@@ -185,46 +185,42 @@ int Haxx_Init()
 			printf("Haxx_Init: After reload - ios_version=%d, ios_revision=%d\n", ios_version, ios_revision);
 		}
 
-		// Run the IOS 37 exploit to enable module loading
-		printf("Haxx_Init: Running exploit for IOS37...\n");
+		// Run the IOS 37 exploit
 		if (!do_exploit()) {
 			printf("Haxx_Init: do_exploit() failed!\n");
 			return -1;
 		}
 		printf("Haxx_Init: exploit succeeded\n");
-
-		printf("Haxx_Init: filemodule_elf=%p, filemodule_elf_end=%p\n", filemodule_elf, filemodule_elf_end);
-		printf("Haxx_Init: Loading modules dynamically for IOS%d\n", ios_version);
-		usleep(4000);
-		int ret = load_module_code(filemodule_elf, filemodule_elf_end);
-		printf("Haxx_Init: filemodule load returned %d\n", ret);
-		if (ret <= 0)
-			return -1;
-
-		printf("Riiv filemodule loaded\n");
-
-		//keep
-		usleep(4000);
-		ret = load_module_code(dipmodule_elf, dipmodule_elf_end);
-		printf("Haxx_Init: dipmodule load returned %d\n", ret);
-		if (ret <= 0)
-			return -1;
-
-		printf("Riiv dipmodule loaded\n");
-
-		usleep(4000);
-
-#ifdef DEBUGGER
-		if (load_module_code(megamodule_elf, megamodule_elf_end) <= 0)
-			return -1;
-
-		printf("Riiv megamodule loaded\n");
-		usleep(4000);
-#endif
 	} else {
-		// HAI-IOS: Modules are pre-loaded, just verify they're available
+		// HAI-IOS: Modules are pre-loaded
 		printf("HAI-IOS detected (IOS%d rev %d), modules pre-loaded\n", ios_version, ios_revision);
 	}
+
+	usleep(4000);
+	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
+		return -1;
+
+	printf("Riiv filemodule loaded\n");
+
+	//keep
+	usleep(4000);
+	if (load_module_code(dipmodule_elf, dipmodule_elf_end) <= 0)
+		return -1;
+
+	printf("Riiv dipmodule loaded\n");
+
+	usleep(4000);
+
+#ifdef DEBUGGER
+	if (load_module_code(megamodule_elf, megamodule_elf_end) <= 0)
+		return -1;
+
+	printf("Riiv megamodule loaded\n");
+	usleep(4000);
+#endif
+
+//	if (File_Init()>=0 && File_Fat_Mount(SD_DISK, "sd")>=0)
+//		RunBootmii();
 
 #ifdef BABELFISH
 	WPAD_Init();
@@ -242,12 +238,8 @@ int Haxx_Init()
 	}
 #endif
 
-	printf("Haxx_Init: returning 0 (success)\n");
 	return 0;
 }
-
-//	if (File_Init()>=0 && File_Fat_Mount(SD_DISK, "sd")>=0)
-//		RunBootmii();
 
 // this function probably shouldn't be here
 #define DEFAULT() if (!hasdefault) { ret = File_SetDefault(ret); if (ret >= 0) hasdefault = true; }
@@ -1263,7 +1255,7 @@ static int load_module_file(s32 fd, const char *filename)
 		0x68, 0x4B, 0x2B, 0x06, 0xD1, 0x0C, 0x68, 0x8B, 0x2B, 0x00,
 		0xD1, 0x09, 0x68, 0xC8, 0x68, 0x42, 0x23, 0xA9, 0x00, 0x9B,
 		0x42, 0x9A, 0xD1, 0x03};
-
+	
 	const u8 retained_patch[15] = {0x49, 0x01, 0x47, 0x88, 0x46, 0xC0, 0xE0, 0x01, 0x12, 0xFF, 0xFE, 0x00, 0x22, 0x00, 0x23};
 
 	const u16 load_module[12] =
@@ -1281,30 +1273,16 @@ static int load_module_file(s32 fd, const char *filename)
 	u8 *addr;
 	s32 ret=1;
 	ioctlv vec;
-	int found = 0;
-
-	printf("load_module_file: searching for pattern in ES module (0x%08X - 0x%08X)\n", ES_MODULE_START, ES_MODULE_START+ES_MODULE_SIZE);
 
 	for (addr=ES_MODULE_START;addr < ES_MODULE_START+ES_MODULE_SIZE-sizeof(old_es_code);addr++) {
-		if (!memcmp(addr, old_es_code, 15)) {
-			printf("load_module_file: found old_es_code at 0x%08X\n", (u32)addr);
-			found = 1;
-		} else if (!memcmp(addr, retained_patch, sizeof(retained_patch))) {
-			printf("load_module_file: found retained_patch at 0x%08X\n", (u32)addr);
-			found = 1;
-		} else if (!memcmp(addr, load_module, 15)) {
-			printf("load_module_file: found load_module at 0x%08X\n", (u32)addr);
-			found = 1;
-		}
+		if (!memcmp(addr, old_es_code, 15) || !memcmp(addr, retained_patch, sizeof(retained_patch)) || !memcmp(addr, load_module, 15)) {
 
-		if (found) {
 			memcpy(temp, addr, 24); //store current code in temporary buffer
 			memcpy(addr, load_module, sizeof(load_module)); //load in new module
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
-			printf("load_module_file: IOS_Ioctlv returned %d\n", ret);
 
 			// restore the old code and flush
 			memcpy(addr, temp, sizeof(load_module));
@@ -1312,10 +1290,13 @@ static int load_module_file(s32 fd, const char *filename)
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			break;
 		}
+		else if (!memcmp(addr, load_module, sizeof(load_module))) {
+			vec.data = (void*)filename;
+			vec.len = strlen(filename)+1;
+			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
+			break;
+		}
 	}
-
-	if (!found)
-		printf("load_module_file: pattern NOT found! ES module may not be patched correctly\n");
 
 	return !ret;
 }
@@ -1371,20 +1352,13 @@ static int load_module_code(u8 *module_code, u8 *module_end)
 	s32 module_size = module_end - module_code;
 	int i;
 
-	printf("load_module_code: module_size=%d\n", module_size);
-
-	if (module_size<16) {
-		printf("load_module_code: module_size too small!\n");
+	if (module_size<16)
 		return 0;
-	}
 
 	if (memcmp(module_code, elfhdr, sizeof(elfhdr))) {
-		printf("load_module_code: decrypting module...\n");
 		dec = (u8*)memalign(32, module_size+32);
-		if (dec == NULL) {
-			printf("load_module_code: memalign failed!\n");
+		if (dec == NULL)
 			return 0;
-		}
 		memset(max, 0xFF, 32);
 		memcpy(dec, elfhdr, sizeof(elfhdr));
 		memcpy(key+16, module_code, 16);
@@ -1397,50 +1371,40 @@ static int load_module_code(u8 *module_code, u8 *module_end)
 		gentables();
 		gkey(4, 8, iv);
 		aes_decrypt(iv+16, ((u8*)module_code)+16, dec+16, module_size-16);
-	} else {
-		printf("load_module_code: module already decrypted\n");
+	} else
 		dec = (u8*)module_code;
-	}
 
 	es_fd = IOS_Open("/dev/es", 0);
 	if (es_fd<0) {
-		printf("load_module_code: IOS_Open(/dev/es) failed: %d\n", es_fd);
 		if (dec != module_code)
 			free(dec);
 		return 0;
 	}
-	printf("load_module_code: opened /dev/es, fd=%d\n", es_fd);
 
 	ISFS_Initialize();
 	ISFS_CreateFile(LOAD_MODULE_PATH, 0, 3, 1, 1);
 	fd = IOS_Open(LOAD_MODULE_PATH, ISFS_OPEN_WRITE);
 	if (fd<0)
 	{
-		printf("load_module_code: IOS_Open(%s) failed: %d\n", LOAD_MODULE_PATH, fd);
 		ISFS_Delete(LOAD_MODULE_PATH);
 		IOS_Close(es_fd);
 		if (dec != module_code)
 			free(dec);
 		return 0;
 	}
-	printf("load_module_code: created %s, fd=%d\n", LOAD_MODULE_PATH, fd);
 
 	// slight issue here since ISFS always rounds up to 32-byte chunks
 	// but it shouldn't hurt anything...
 	written = IOS_Write(fd, dec, module_size);
-	printf("load_module_code: wrote %d/%d bytes\n", written, module_size);
 	IOS_Close(fd);
 	fd = 0;
 	if (written >= module_size)
 		fd = load_module_file(es_fd, LOAD_MODULE_PATH);
-	else
-		printf("load_module_code: write failed, skipping load_module_file\n");
 
 	IOS_Close(es_fd);
 	ISFS_Delete(LOAD_MODULE_PATH);
 	if (dec != module_code)
 		free(dec);
-	printf("load_module_code: returning %d\n", fd);
 	return fd;
 }
 
@@ -1688,9 +1652,8 @@ static bool do_exploit()
 
 	if (IOS_GetVersion() != (u32)HAXX_IOS || (ios_rev != 5663 && ios_rev != 5662 && ios_rev != 3869 && ios_rev != 5919))
 	{
-		printf("skipping IOS version check");
-		//printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
-		//return false;
+		printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
+		return false;
 	}
 
 	es_fd = IOS_Open("/dev/es", 0);
@@ -1700,8 +1663,7 @@ static bool do_exploit()
 		return false;
 	}
 
-	//sneek = disable_mem2_protection(es_fd);
-	sneek = 1;
+	sneek = disable_mem2_protection(es_fd);
 	if (sneek)
 	{
 		void *new_ios;
@@ -1716,7 +1678,11 @@ static bool do_exploit()
 
 		if (sneek==1)
 		{
-			// Skip NAND perms patch here - it will be done after IOS reload
+			if (!do_patch(NAND_PERMS_INDEX))
+			{
+				patch_failed = 1;
+				printf("NAND Permissions patch failed\n");
+			}
 			sneek = 0;
 		}
 
@@ -1730,25 +1696,16 @@ static bool do_exploit()
 		{
 			seeprom_read(&seeprom, 0, sizeof(seeprom));
 		}
-
-		// For retail Wii (IOS 37), we need to patch and reload IOS
-		// For HAI-IOS, patches are already applied statically
-		if (!is_wiiu && !patch_failed)
+		if (!patch_failed)
 		{
-			printf("Retail Wii detected, preparing patched kernel...\n");
-			new_ios = prepare_new_kernel(IOS_DEST);
+			new_ios = prepare_new_kernel(HAXX_IOS);
 			patch_failed = !new_ios;
 			if (patch_failed)
 				printf("Failed to prepare new kernel\n");
 		}
-		else
-		{
-			new_ios = NULL;
-		}
 
-		if (!patch_failed && new_ios != NULL)
+		if (!patch_failed)
 		{
-			printf("Loading patched IOS...\n");
 			shutdown_for_reload();
 			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
 			free(new_ios);
@@ -1761,10 +1718,9 @@ static bool do_exploit()
 				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
 			} else
-				printf("Loaded patched IOS rev %d\n", IOS_GetRevision());
+				printf("Loaded patched IOS\n");
 		}
 
-		// Now patch NAND permissions in the reloaded IOS
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
 
@@ -1806,7 +1762,7 @@ static bool do_exploit()
 			DCFlushRange(MEM_IOSVERSION, 32);
 		}
 #endif
-		/*
+
 		if (sneek) {
 			printf("SNEEK found, have to reboot again *sigh*\n");
 			if (es_fd >=0 )
@@ -1814,7 +1770,6 @@ static bool do_exploit()
 			IOS_ReloadIOS((u32)HAXX_IOS);
 			return do_exploit();
 		}
-		*/
 
 		if (!patch_failed)
 			printf("All patching done!\n");

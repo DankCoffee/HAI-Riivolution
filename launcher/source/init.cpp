@@ -155,6 +155,7 @@ void Initialise()
 	if (Haxx_Init() < 0) {
 		int approach = 0;
 		WPAD_Init();
+		//TODO: check for and initialize the Wii U gamepad here
 		printf("\n\n");
 		if (is_wiiu) {
 			printf("IOS Error. Please try relaunching this program from HBC.\n");
