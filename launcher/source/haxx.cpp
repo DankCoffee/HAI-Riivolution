@@ -1698,6 +1698,10 @@ static bool do_exploit()
 		}
 		if (!patch_failed)
 		{
+			// Initialize ISFS to access NAND for IOS files
+			printf("Initializing ISFS...\n");
+			ISFS_Initialize();
+			printf("ISFS initialized, preparing patched kernel...\n");
 			new_ios = prepare_new_kernel(HAXX_IOS);
 			patch_failed = !new_ios;
 			if (patch_failed)
