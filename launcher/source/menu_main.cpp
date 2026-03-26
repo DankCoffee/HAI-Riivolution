@@ -568,6 +568,11 @@ Menus::Enum MenuMain()
 
 		CheckShutdown();
 
+		// Check for HOME button directly in case button trigger doesn't work
+		UpdatePads();
+		if (WPAD_ButtonsDown(0) & WPAD_BUTTON_HOME)
+			return Menus::Exit;
+
 		if (!Launcher_DiscInserted())
 			return Menus::Init;
 	}
