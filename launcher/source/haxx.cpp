@@ -1263,7 +1263,7 @@ static int load_module_file(s32 fd, const char *filename)
 		0x68, 0x4B, 0x2B, 0x06, 0xD1, 0x0C, 0x68, 0x8B, 0x2B, 0x00,
 		0xD1, 0x09, 0x68, 0xC8, 0x68, 0x42, 0x23, 0xA9, 0x00, 0x9B,
 		0x42, 0x9A, 0xD1, 0x03};
-	
+
 	const u8 retained_patch[15] = {0x49, 0x01, 0x47, 0x88, 0x46, 0xC0, 0xE0, 0x01, 0x12, 0xFF, 0xFE, 0x00, 0x22, 0x00, 0x23};
 
 	const u16 load_module[12] =
@@ -1281,16 +1281,30 @@ static int load_module_file(s32 fd, const char *filename)
 	u8 *addr;
 	s32 ret=1;
 	ioctlv vec;
+	int found = 0;
+
+	printf("load_module_file: searching for pattern in ES module (0x%08X - 0x%08X)\n", ES_MODULE_START, ES_MODULE_START+ES_MODULE_SIZE);
 
 	for (addr=ES_MODULE_START;addr < ES_MODULE_START+ES_MODULE_SIZE-sizeof(old_es_code);addr++) {
-		if (!memcmp(addr, old_es_code, 15) || !memcmp(addr, retained_patch, sizeof(retained_patch)) || !memcmp(addr, load_module, 15)) {
+		if (!memcmp(addr, old_es_code, 15)) {
+			printf("load_module_file: found old_es_code at 0x%08X\n", (u32)addr);
+			found = 1;
+		} else if (!memcmp(addr, retained_patch, sizeof(retained_patch))) {
+			printf("load_module_file: found retained_patch at 0x%08X\n", (u32)addr);
+			found = 1;
+		} else if (!memcmp(addr, load_module, 15)) {
+			printf("load_module_file: found load_module at 0x%08X\n", (u32)addr);
+			found = 1;
+		}
 
+		if (found) {
 			memcpy(temp, addr, 24); //store current code in temporary buffer
 			memcpy(addr, load_module, sizeof(load_module)); //load in new module
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
+			printf("load_module_file: IOS_Ioctlv returned %d\n", ret);
 
 			// restore the old code and flush
 			memcpy(addr, temp, sizeof(load_module));
@@ -1298,13 +1312,10 @@ static int load_module_file(s32 fd, const char *filename)
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			break;
 		}
-		else if (!memcmp(addr, load_module, sizeof(load_module))) {
-			vec.data = (void*)filename;
-			vec.len = strlen(filename)+1;
-			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
-			break;
-		}
 	}
+
+	if (!found)
+		printf("load_module_file: pattern NOT found! ES module may not be patched correctly\n");
 
 	return !ret;
 }
@@ -1705,18 +1716,16 @@ static bool do_exploit()
 
 		if (sneek==1)
 		{
-			/*
 			if (!do_patch(NAND_PERMS_INDEX))
 			{
 				patch_failed = 1;
 				printf("NAND Permissions patch failed\n");
 			}
-			*/
 			sneek = 0;
 		}
 
 		read_otp();
-		if (ES_GetDeviceID(&ng_id) || ng_id != otp.ng_id) // wtf how
+		if (ES_GetDeviceID(&ng_id) || ng_id != otp.ng_id)
 			patch_failed = 1;
 
 		if (ng_id >= 0x20000000)
@@ -1724,53 +1733,48 @@ static bool do_exploit()
 		else
 		{
 			seeprom_read(&seeprom, 0, sizeof(seeprom));
-			//seeprom_write(korean_key, 0x74, 16);
-			//seeprom_write(null_key, 0x74, 16);
 		}
 
-		//not needed in HAI-IOS
-		//instead statically apply all patches
-		/*
-		if (!patch_failed)
+		// For retail Wii (IOS 37), we need to patch and reload IOS
+		// For HAI-IOS, patches are already applied statically
+		if (!is_wiiu && !patch_failed)
 		{
+			printf("Retail Wii detected, preparing patched kernel...\n");
 			new_ios = prepare_new_kernel(IOS_DEST);
 			patch_failed = !new_ios;
 			if (patch_failed)
 				printf("Failed to prepare new kernel\n");
 		}
-		*/
-
-		/* also skip
-		if (!patch_failed)
+		else
 		{
+			new_ios = NULL;
+		}
+
+		if (!patch_failed && new_ios != NULL)
+		{
+			printf("Loading patched IOS...\n");
 			shutdown_for_reload();
 			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
 			free(new_ios);
 			es_fd = 0;
 			recover_from_reload((u32)HAXX_IOS);
-		*/
 #if DEBUG_HAXX && DEBUG_NET
 			Init_DebugConsole();
 #endif
-			/*
 			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
 				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
 			} else
 				printf("Loaded patched IOS\n");
-			*/
-		//}
+		}
 
-		/*
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
-		*/
 
 		// if sneek was found, we need to reload IOS again before doing anything else
 		// to make sure we have clean modules
-		//patch_failed |= sneek; disable check
+		patch_failed |= sneek;
 
-		/*
 		if (!patch_failed)
 		{
 			usleep(4000);
