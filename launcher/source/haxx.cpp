@@ -1196,9 +1196,10 @@ static void shutdown_for_reload()
 #if DEBUG_HAXX && DEBUG_NET
 	Init_DebugConsole_Shutdown();
 #endif
-	ISFS_Deinitialize();
-	WPAD_Shutdown();
-	__IOS_ShutdownSubsystems();
+	// Don't deinitialize - we need ISFS for the reload
+	// ISFS_Deinitialize();
+	// WPAD_Shutdown();
+	// __IOS_ShutdownSubsystems();
 }
 
 static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
@@ -1731,7 +1732,7 @@ static bool do_exploit()
 			printf("Shutting down for reload...\n");
 			shutdown_for_reload();
 			printf("Loading patched IOS...\n");
-			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
+			load_patched_ios(es_fd, new_ios, ios_rev + 1);
 			free(new_ios);
 			es_fd = 0;
 			printf("Waiting for reload to complete...\n");
