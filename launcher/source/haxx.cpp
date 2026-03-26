@@ -1697,9 +1697,21 @@ static bool do_exploit()
 
 		if (!patch_failed)
 		{
-			// Skip kernel reload - use base exploit only
-			printf("Skipping kernel reload\n");
+			printf("Reloading to patched IOS...\n");
+			shutdown_for_reload();
+			printf("shutdown done\n");
+			load_patched_ios(es_fd, new_ios, ios_rev + 1);
+			printf("load_patched_ios done\n");
 			free(new_ios);
+			es_fd = 0;
+			printf("Waiting for reload...\n");
+			recover_from_reload((u32)HAXX_IOS);
+			printf("Reload done: IOS %d (rev %d)\n", IOS_GetVersion(), IOS_GetRevision());
+			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
+				printf("Reload FAILED\n");
+				patch_failed = 1;
+			} else
+				printf("Reload OK\n");
 		}
 
 		if (!patch_failed)
