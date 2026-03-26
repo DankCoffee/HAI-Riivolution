@@ -1249,8 +1249,17 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 			*MEM1_IOSVERSION = 0x00020000;
 			DCFlushRange(MEM1_IOSVERSION, 4);
 			printf("Taking the plunge...\n");
+			// Try normal IOS_Ioctlv first to test
+			s32 ret = IOS_Ioctlv(fd, 0x0C, 0, 1, &vec);
+			printf("Ioctlv returned %d, junk=%d\n", ret, junk);
+			if (ret < 0) {
+				printf("Reload failed with error %d\n", ret);
+				return;
+			}
+			// If we get here, reload didn't work - try RebootBackground
+			printf("Trying RebootBackground...\n");
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
-			printf("Ioctlv returned %d\n", junk);
+			printf("RebootBackground returned %d\n", junk);
 			return;
 		}
 	}
