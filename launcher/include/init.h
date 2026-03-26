@@ -10,9 +10,10 @@ extern "C" {
 	void Init_DebugConsole_Shutdown();
 }
 
-#define DEBUG_NET 1
+// Debug console disabled for release
+// #define DEBUG_NET 1
 #define DEBUG_PORT 51016
-#define DEBUG_IPADDRESS "192.168.1.26"
+#define DEBUG_IPADDRESS "0.0.0.0"
 
 #ifdef DEBUG_NET
 #define Init_DebugConsole() Init_DebugConsole(DEBUG_IPADDRESS, DEBUG_PORT)
