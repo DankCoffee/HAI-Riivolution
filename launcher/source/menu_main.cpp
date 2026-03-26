@@ -349,6 +349,8 @@ struct PageViewer {
 };
 
 #define MENUINIT_CHECKBUTTONS() { \
+	WPAD_ScanPads(); \
+	PAD_ScanPads(); \
 	switch (buttons.Pressed()) { \
 		case 0: \
 			return Menus::Exit; \
@@ -357,8 +359,6 @@ struct PageViewer {
 	} \
 	CheckShutdown(); \
 	/* USB Debug Test: 1+2 on Wiimote, or L+R on Classic/GC */ \
-	WPAD_ScanPads(); \
-	PAD_ScanPads(); \
 	u32 wpad_held = WPAD_ButtonsHeld(0) | WPAD_ButtonsHeld(1) | WPAD_ButtonsHeld(2) | WPAD_ButtonsHeld(3); \
 	u32 gc_held = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3); \
 	if ((wpad_held & (WPAD_BUTTON_1 | WPAD_BUTTON_2)) == (WPAD_BUTTON_1 | WPAD_BUTTON_2) || \
@@ -567,11 +567,6 @@ Menus::Enum MenuMain()
 		}
 
 		CheckShutdown();
-
-		// Check for HOME button directly in case button trigger doesn't work
-		UpdatePads();
-		if (WPAD_ButtonsDown(0) & WPAD_BUTTON_HOME)
-			return Menus::Exit;
 
 		if (!Launcher_DiscInserted())
 			return Menus::Init;
