@@ -501,6 +501,11 @@ static int do_patch(int i)
 			DCFlushRange((void*)((u32)patch&~0x1F), 32);
 		return 1;
 	}
+	else if (*patch == patches[i].new_value)
+	{
+		// Already patched
+		return 1;
+	}
 	printf("do_patch %d failed, location is %04X instead of %04X\n", i, *patch, patches[i].old_value);
 	return 0;
 }
