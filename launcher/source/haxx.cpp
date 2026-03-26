@@ -1700,19 +1700,10 @@ static bool do_exploit()
 
 		if (!patch_failed)
 		{
-			printf("Shutting down for reload...\n");
-			shutdown_for_reload();
-			load_patched_ios(es_fd, new_ios, ios_rev + 1);
+			// Skip kernel reload - just use base exploit for module loading
+			printf("Using base exploit only\n");
 			free(new_ios);
 			es_fd = 0;
-			printf("Waiting for reload...\n");
-			recover_from_reload((u32)HAXX_IOS);
-			printf("After reload: IOS %d (rev %d)\n", IOS_GetVersion(), IOS_GetRevision());
-			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("Reload FAILED\n");
-				patch_failed = 1;
-			} else
-				printf("Reload OK\n");
 		}
 
 		if (!patch_failed)
