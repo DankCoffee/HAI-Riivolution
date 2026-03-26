@@ -1108,7 +1108,9 @@ static void* prepare_new_kernel(u64 title)
 	void *kernel_blob = NULL;
 	int i;
 
+	printf("prepare_new_kernel: title=%016llX\n", title);
 	sprintf(filename, "/title/%08x/%08x/content/title.tmd", (u32)(title>>32), (u32)title);
+	printf("prepare_new_kernel: looking for %s\n", filename);
 	tmd_blob = (u32*)fetch_file(filename, 0);
 	if (tmd_blob==NULL)
 	{
@@ -1116,6 +1118,7 @@ static void* prepare_new_kernel(u64 title)
 		return NULL;
 	}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
+	printf("prepare_new_kernel: TMD loaded, num_contents=%d, boot_index=%d\n", title_tmd->num_contents, title_tmd->boot_index);
 
 	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob))) //signature check is disabled
 	{
@@ -1138,6 +1141,7 @@ static void* prepare_new_kernel(u64 title)
 		{
 			size = title_tmd->contents[i].size;
 			kernel_blob = blob;
+			printf("prepare_new_kernel: loaded boot content %d, size=%d\n", i, size);
 		}
 		else
 			free(blob);
@@ -1311,13 +1315,16 @@ static void recover_from_reload(s32 version)
 	irq_handler = IRQ_Free(IRQ_PI_ACR);
 
 	// Wait for old IOS to change version number before reloading
+	printf("recover_from_reload: waiting for IOS version change from %d...\n", version);
 	for (retries = 0; retries < 500; retries++)
 	{
 		newversion = IOS_GetVersion();
-		if (newversion != version)
+		if (newversion != version) {
+			printf("recover_from_reload: IOS version changed to %d\n", newversion);
 			udelay(6000);
-		else
 			break;
+		}
+		udelay(6000);
 	}
 
 	// Catch erroneous IPC signal
@@ -1328,6 +1335,7 @@ static void recover_from_reload(s32 version)
 		udelay(6000);
 	}
 
+	printf("recover_from_reload: reinitializing...\n");
 	IRQ_Request(IRQ_PI_ACR, irq_handler, NULL);
 	__UnmaskIrq(IRQ_PI_ACR);
 
@@ -1337,6 +1345,7 @@ static void recover_from_reload(s32 version)
 	__ES_Reset();
 	__ES_Init();
 	__STM_Init();
+	printf("recover_from_reload: done\n");
 }
 
 static int load_module_code(u8 *module_code, u8 *module_end)
@@ -1703,6 +1712,8 @@ static bool do_exploit()
 			ISFS_Initialize();
 			printf("ISFS initialized, preparing patched kernel...\n");
 			new_ios = prepare_new_kernel(HAXX_IOS);
+			if (new_ios)
+				printf("prepare_new_kernel succeeded, kernel at %p\n", new_ios);
 			patch_failed = !new_ios;
 			if (patch_failed)
 				printf("Failed to prepare new kernel\n");
@@ -1710,14 +1721,18 @@ static bool do_exploit()
 
 		if (!patch_failed)
 		{
+			printf("Shutting down for reload...\n");
 			shutdown_for_reload();
+			printf("Loading patched IOS...\n");
 			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
 			free(new_ios);
 			es_fd = 0;
+			printf("Waiting for reload to complete...\n");
 			recover_from_reload((u32)HAXX_IOS);
 #if DEBUG_HAXX && DEBUG_NET
 			Init_DebugConsole();
 #endif
+			printf("After reload - IOS version: %d, revision: %d\n", IOS_GetVersion(), IOS_GetRevision());
 			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
 				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
