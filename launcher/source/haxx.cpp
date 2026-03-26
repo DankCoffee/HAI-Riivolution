@@ -1176,19 +1176,29 @@ static void* prepare_new_kernel(u64 title)
 		printf("Babelfish insertion done\n");
 	}
 #endif
-	//should be statically applied to HAI-IOS
-	if (!patch_mem2(kernel_blob, size) || !patch_ios37_sd_load(kernel_blob, size) ||
-		!patch_gpio_stm(kernel_blob, size) || !patch_fs_redirect(kernel_blob, size) ||
-		!patch_prng_perms(kernel_blob, size))
+	// Apply patches to IOS 37 kernel
+	printf("Patching kernel (size=%d)...\n", size);
+	int patch_result = 0;
+	if (!patch_mem2(kernel_blob, size)) { printf("patch_mem2 failed\n"); patch_result = 1; }
+	if (!patch_ios37_sd_load(kernel_blob, size)) { printf("patch_ios37_sd_load failed\n"); patch_result = 1; }
+	if (!patch_gpio_stm(kernel_blob, size)) { printf("patch_gpio_stm failed\n"); patch_result = 1; }
+	if (!patch_fs_redirect(kernel_blob, size)) { printf("patch_fs_redirect failed\n"); patch_result = 1; }
+	if (!patch_prng_perms(kernel_blob, size)) { printf("patch_prng_perms failed\n"); patch_result = 1; }
+	
+	if (patch_result)
 	{
 		printf("Couldn't patch kernel\n");
 		free(kernel_blob);
 		kernel_blob = NULL;
 	}
 	else
+	{
+		printf("Kernel patched successfully\n");
 		DCStoreRange(kernel_blob, size);
+	}
 
-	return kernel_blob;}
+	return kernel_blob;
+}
 
 // remember any MEM2 data may be invalid after reloading IOS
 static void shutdown_for_reload()
