@@ -1199,7 +1199,7 @@ static void shutdown_for_reload()
 #if DEBUG_HAXX && DEBUG_NET
 	Init_DebugConsole_Shutdown();
 #endif
-	// Don't deinitialize - we need ISFS for the reload
+	// Don't shutdown - causes reload to fail
 	// ISFS_Deinitialize();
 	// WPAD_Shutdown();
 	// __IOS_ShutdownSubsystems();
@@ -1246,8 +1246,8 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 			vec.len = sizeof(junk);
 			*MEM1_IOSVERSION = 0x00020000;
 			printf("Taking the plunge...\n");
-			s32 ret = IOS_Ioctlv(fd, 0x0C, 0, 1, &vec);
-			printf("Ioctlv returned %d, junk=%d\n", ret, junk);
+			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
+			printf("Ioctlv returned %d\n", junk);
 			return;
 		}
 	}
