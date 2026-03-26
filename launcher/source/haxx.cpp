@@ -185,6 +185,14 @@ int Haxx_Init()
 			printf("Haxx_Init: After reload - ios_version=%d, ios_revision=%d\n", ios_version, ios_revision);
 		}
 
+		// Run the IOS 37 exploit to enable module loading
+		printf("Haxx_Init: Running exploit for IOS37...\n");
+		if (!do_exploit()) {
+			printf("Haxx_Init: do_exploit() failed!\n");
+			return -1;
+		}
+		printf("Haxx_Init: exploit succeeded\n");
+
 		printf("Haxx_Init: Loading modules dynamically for IOS%d\n", ios_version);
 		usleep(4000);
 		int ret = load_module_code(filemodule_elf, filemodule_elf_end);
