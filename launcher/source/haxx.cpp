@@ -1234,10 +1234,12 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 
 	ioctlv vec;
 	u32* addr;
+	int found = 0;
 	for (addr=(u32*)ES_MODULE_START;addr < (u32*)(ES_MODULE_START+ES_MODULE_SIZE);addr++)
 	{
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
+			found = 1;
 			u32 junk;
 			printf("Found ES_SYSCALL_DEVICE_OPEN at 0x%08X\n", (u32)addr);
 			u32 memboot_addr = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
@@ -1249,6 +1251,7 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 			MEM1_BASE_UNCACHED[4] = memboot_addr; // es_syscall_ios_memboot
 			MEM1_BASE_UNCACHED[5] = kernel_addr; // kernel path name
 			printf("MEM1_BASE_UNCACHED[3..5] = %08X %08X %08X\n", MEM1_BASE_UNCACHED[3], MEM1_BASE_UNCACHED[4], MEM1_BASE_UNCACHED[5]);
+			printf("Patching ES at 0x%08X...\n", (u32)addr);
 
 			addr[0] = 0xE3A02001; // mov r2, #1
 			addr[1] = 0xE12FFF12; // bx r2
@@ -1258,14 +1261,14 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 			// change ios version in lowmem so we know when the new one has loaded
 			*MEM1_IOSVERSION = 0x00020000;
 			printf("Taking the plunge...\n");
-			//printf("IOS returned %d\n", IOS_Ioctlv(fd, 0x0c, 0, 1, &vec));
-			//printf("Owned titles: %d\n", junk);
-			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
-			printf("IOS_IoctlvRebootBackground returned (should not happen)\n");
+			s32 ret = IOS_Ioctlv(fd, 0x0C, 0, 1, &vec);
+			printf("IOS_Ioctlv returned %d (should not return!)\n", ret);
+			printf("junk = %d\n", junk);
 			return;
 		}
 	}
-	printf("load_patched_ios: ES_SYSCALL_DEVICE_OPEN not found!\n");
+	if (!found)
+		printf("load_patched_ios: ES_SYSCALL_DEVICE_OPEN not found!\n");
 }
 
 static int load_module_file(s32 fd, const char *filename)
