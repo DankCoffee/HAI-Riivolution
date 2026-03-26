@@ -171,29 +171,24 @@ int Haxx_Init()
 	u16 ios_revision = IOS_GetRevision();
 	int is_wiiu = (ios_version >= 0x20000000 || ios_version == (u32)HAI_IOS);
 
-	printf("Haxx_Init: ios_version=%d, ios_revision=%d, is_wiiu=%d\n", ios_version, ios_revision, is_wiiu);
+	printf("IOS: %d (rev %d), Wii U: %d\n", ios_version, ios_revision, is_wiiu);
 
-	// On HAI-IOS (Wii U), modules are pre-loaded in firmware
-	// On retail Wii (IOS 37), run the exploit to enable module loading
 	if (!is_wiiu) {
-		// Retail Wii: Need to reload to IOS 37 for the exploit
 		if (ios_version != (u32)HAXX_IOS) {
-			printf("Haxx_Init: Reloading from IOS%d to IOS37 for exploit\n", ios_version);
+			printf("Reloading to IOS37...\n");
 			IOS_ReloadwithAHB((u32)HAXX_IOS);
 			ios_version = IOS_GetVersion();
 			ios_revision = IOS_GetRevision();
-			printf("Haxx_Init: After reload - ios_version=%d, ios_revision=%d\n", ios_version, ios_revision);
+			printf("Now: IOS %d (rev %d)\n", ios_version, ios_revision);
 		}
 
-		// Run the IOS 37 exploit
 		if (!do_exploit()) {
-			printf("Haxx_Init: do_exploit() failed!\n");
+			printf("Exploit FAILED\n");
 			return -1;
 		}
-		printf("Haxx_Init: exploit succeeded\n");
+		printf("Exploit OK\n");
 	} else {
-		// HAI-IOS: Modules are pre-loaded
-		printf("HAI-IOS detected (IOS%d rev %d), modules pre-loaded\n", ios_version, ios_revision);
+		printf("HAI-IOS detected, skipping exploit\n");
 	}
 
 	usleep(4000);
@@ -1111,15 +1106,14 @@ static void* prepare_new_kernel(u64 title)
 
 	printf("prepare_new_kernel: title=%016llX\n", title);
 	sprintf(filename, "/title/%08x/%08x/content/title.tmd", (u32)(title>>32), (u32)title);
-	printf("prepare_new_kernel: looking for %s\n", filename);
 	tmd_blob = (u32*)fetch_file(filename, 0);
 	if (tmd_blob==NULL)
 	{
-		printf("Couldn't allocate TMD blob\n");
+		printf("TMD not found\n");
 		return NULL;
 	}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
-	printf("prepare_new_kernel: TMD loaded, num_contents=%d, boot_index=%d\n", title_tmd->num_contents, title_tmd->boot_index);
+	printf("TMD loaded, contents=%d, boot=%d\n", title_tmd->num_contents, title_tmd->boot_index);
 
 	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob))) //signature check is disabled
 	{
@@ -1177,13 +1171,12 @@ static void* prepare_new_kernel(u64 title)
 	}
 #endif
 	// Apply patches to IOS 37 kernel
-	printf("Patching kernel (size=%d)...\n", size);
 	int patch_result = 0;
-	if (!patch_mem2(kernel_blob, size)) { printf("patch_mem2 FAILED\n"); patch_result = 1; } else { printf("patch_mem2 OK\n"); }
-	if (!patch_ios37_sd_load(kernel_blob, size)) { printf("patch_ios37_sd_load FAILED\n"); patch_result = 1; } else { printf("patch_ios37_sd_load OK\n"); }
-	if (!patch_gpio_stm(kernel_blob, size)) { printf("patch_gpio_stm FAILED\n"); patch_result = 1; } else { printf("patch_gpio_stm OK\n"); }
-	if (!patch_fs_redirect(kernel_blob, size)) { printf("patch_fs_redirect FAILED\n"); patch_result = 1; } else { printf("patch_fs_redirect OK\n"); }
-	if (!patch_prng_perms(kernel_blob, size)) { printf("patch_prng_perms FAILED\n"); patch_result = 1; } else { printf("patch_prng_perms OK\n"); }
+	if (!patch_mem2(kernel_blob, size)) patch_result = 1;
+	if (!patch_ios37_sd_load(kernel_blob, size)) patch_result = 1;
+	if (!patch_gpio_stm(kernel_blob, size)) patch_result = 1;
+	if (!patch_fs_redirect(kernel_blob, size)) patch_result = 1;
+	if (!patch_prng_perms(kernel_blob, size)) patch_result = 1;
 	
 	if (patch_result)
 	{
@@ -1193,7 +1186,7 @@ static void* prepare_new_kernel(u64 title)
 	}
 	else
 	{
-		printf("Kernel patched successfully\n");
+		printf("Kernel patched OK\n");
 		DCStoreRange(kernel_blob, size);
 	}
 
@@ -1234,41 +1227,31 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 
 	ioctlv vec;
 	u32* addr;
-	int found = 0;
 	for (addr=(u32*)ES_MODULE_START;addr < (u32*)(ES_MODULE_START+ES_MODULE_SIZE);addr++)
 	{
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
-			found = 1;
 			u32 junk;
-			printf("Found ES_SYSCALL_DEVICE_OPEN at 0x%08X\n", (u32)addr);
 			u32 memboot_addr = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
 			u32 kernel_addr = (u32)new_ios & 0x1FFFFFFF;
-			printf("load_patched_ios: es_syscall_ios_memboot=0x%08X, kernel_ptr=0x%08X\n", memboot_addr, kernel_addr);
-			printf("load_patched_ios: ios_version=%d\n", ios_version);
+			printf("Reload: ios_ver=%d, memboot=0x%08X, kernel=0x%08X\n", ios_version, memboot_addr, kernel_addr);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
-			MEM1_BASE_UNCACHED[4] = memboot_addr; // es_syscall_ios_memboot
-			MEM1_BASE_UNCACHED[5] = kernel_addr; // kernel path name
-			printf("MEM1_BASE_UNCACHED[3..5] = %08X %08X %08X\n", MEM1_BASE_UNCACHED[3], MEM1_BASE_UNCACHED[4], MEM1_BASE_UNCACHED[5]);
-			printf("Patching ES at 0x%08X...\n", (u32)addr);
-
-			addr[0] = 0xE3A02001; // mov r2, #1
-			addr[1] = 0xE12FFF12; // bx r2
+			MEM1_BASE_UNCACHED[4] = memboot_addr;
+			MEM1_BASE_UNCACHED[5] = kernel_addr;
+			addr[0] = 0xE3A02001;
+			addr[1] = 0xE12FFF12;
 			DCFlushRange(addr, 8);
 			vec.data = &junk;
 			vec.len = sizeof(junk);
-			// change ios version in lowmem so we know when the new one has loaded
 			*MEM1_IOSVERSION = 0x00020000;
 			printf("Taking the plunge...\n");
 			s32 ret = IOS_Ioctlv(fd, 0x0C, 0, 1, &vec);
-			printf("IOS_Ioctlv returned %d (should not return!)\n", ret);
-			printf("junk = %d\n", junk);
+			printf("IOS_Ioctlv returned %d, junk=%d\n", ret, junk);
 			return;
 		}
 	}
-	if (!found)
-		printf("load_patched_ios: ES_SYSCALL_DEVICE_OPEN not found!\n");
+	printf("ES_SYSCALL_DEVICE_OPEN not found!\n");
 }
 
 static int load_module_file(s32 fd, const char *filename)
@@ -1331,42 +1314,26 @@ static void recover_from_reload(s32 version)
 	s32 newversion;
 	int retries;
 	raw_irq_handler_t irq_handler;
-	// Mask IPC IRQ while we're busy reloading
 	__MaskIrq(IRQ_PI_ACR);
 	irq_handler = IRQ_Free(IRQ_PI_ACR);
 
-	// Wait for old IOS to change version number before reloading
-	printf("recover_from_reload: waiting for IOS version change from %d...\n", version);
 	for (retries = 0; retries < 500; retries++)
 	{
 		newversion = IOS_GetVersion();
 		if (newversion != version) {
-			printf("recover_from_reload: IOS version changed to %d\n", newversion);
 			udelay(6000);
 			break;
 		}
 		udelay(6000);
 	}
 
-	// Catch erroneous IPC signal
-	for (retries = 0; retries < 10; retries++)
-	{
-		if(*IPC_REG_1 & 2)
-			break;
-		udelay(6000);
-	}
-
-	printf("recover_from_reload: reinitializing...\n");
 	IRQ_Request(IRQ_PI_ACR, irq_handler, NULL);
 	__UnmaskIrq(IRQ_PI_ACR);
-
 	__IPC_Reinitialize();
-
 	__IOS_InitializeSubsystems();
 	__ES_Reset();
 	__ES_Init();
 	__STM_Init();
-	printf("recover_from_reload: done\n");
 }
 
 static int load_module_code(u8 *module_code, u8 *module_end)
@@ -1682,7 +1649,7 @@ static bool do_exploit()
 
 	if (IOS_GetVersion() != (u32)HAXX_IOS || (ios_rev != 5663 && ios_rev != 5662 && ios_rev != 3869 && ios_rev != 5919))
 	{
-		printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
+		printf("Wrong IOS version\n");
 		return false;
 	}
 
@@ -1698,11 +1665,6 @@ static bool do_exploit()
 	{
 		void *new_ios;
 		u32 ng_id;
-#if 0
-		u8 korean_key[16] = {0x63, 0xb8, 0x2b, 0xb4, 0xf4, 0x61, 0x4e, 0x2e,
-							 0x13, 0xf2, 0xfe, 0xfb, 0xba, 0x4c, 0x9b, 0x7e};
-		u8 null_key[16] = {0};
-#endif
 		printf("MEM2 protection disabled\n");
 		patch_failed = 0;
 
@@ -1728,13 +1690,9 @@ static bool do_exploit()
 		}
 		if (!patch_failed)
 		{
-			// Initialize ISFS to access NAND for IOS files
 			printf("Initializing ISFS...\n");
 			ISFS_Initialize();
-			printf("ISFS initialized, preparing patched kernel...\n");
 			new_ios = prepare_new_kernel(HAXX_IOS);
-			if (new_ios)
-				printf("prepare_new_kernel succeeded, kernel at %p\n", new_ios);
 			patch_failed = !new_ios;
 			if (patch_failed)
 				printf("Failed to prepare new kernel\n");
@@ -1744,28 +1702,22 @@ static bool do_exploit()
 		{
 			printf("Shutting down for reload...\n");
 			shutdown_for_reload();
-			printf("Loading patched IOS...\n");
 			load_patched_ios(es_fd, new_ios, ios_rev + 1);
 			free(new_ios);
 			es_fd = 0;
-			printf("Waiting for reload to complete...\n");
+			printf("Waiting for reload...\n");
 			recover_from_reload((u32)HAXX_IOS);
-#if DEBUG_HAXX && DEBUG_NET
-			Init_DebugConsole();
-#endif
-			printf("After reload - IOS version: %d, revision: %d\n", IOS_GetVersion(), IOS_GetRevision());
+			printf("After reload: IOS %d (rev %d)\n", IOS_GetVersion(), IOS_GetRevision());
 			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
+				printf("Reload FAILED\n");
 				patch_failed = 1;
 			} else
-				printf("Loaded patched IOS\n");
+				printf("Reload OK\n");
 		}
 
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
 
-		// if sneek was found, we need to reload IOS again before doing anything else
-		// to make sure we have clean modules
 		patch_failed |= sneek;
 
 		if (!patch_failed)
@@ -1775,12 +1727,8 @@ static bool do_exploit()
 				load_sdhc_module(0x000000010000003Dllu) || load_sdhc_module(0x0000000100000050llu));
 			if (patch_failed)
 			{
-				printf("SDHC module couldn't be loaded, trying IOS%d SD.\n", (u32)HAXX_IOS);
 				patch_failed = !load_sdhc_module(HAXX_IOS);
-				if (patch_failed)
-					printf("IOS%d module also failed to load.\n", (u32)HAXX_IOS);
-			} else
-				printf("SDHC loaded\n");
+			}
 		}
 
 #ifndef YARR
@@ -1788,23 +1736,10 @@ static bool do_exploit()
 			patch_failed = !do_sig_check_patch();
 		if (!patch_failed)
 			patch_failed = !do_patch(DVD_SWITCH_INDEX);
-#else
-		// kill sig check
-		if (*(u16*)0x93A752E6 == 0x2007) {
-			*(u16*)0x93A752E6 = 0x2000;
-			DCFlushRange((void*)0x93A752E0, 32);
-		}
-		// use original IOS version
-		if (IOS_GetVersion() > 100) {
-			u32 ios = *MEM_IOSVERSION;
-			ios = ((ios&0xFFFF0000)-(100<<16))|(ios&0xFFFF);
-			*MEM_IOSVERSION = ios;
-			DCFlushRange(MEM_IOSVERSION, 32);
-		}
 #endif
 
 		if (sneek) {
-			printf("SNEEK found, have to reboot again *sigh*\n");
+			printf("SNEEK found, rebooting...\n");
 			if (es_fd >=0 )
 				IOS_Close(es_fd);
 			IOS_ReloadIOS((u32)HAXX_IOS);
