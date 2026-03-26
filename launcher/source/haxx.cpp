@@ -173,18 +173,18 @@ int Haxx_Init()
 
 	printf("Haxx_Init: ios_version=%d, ios_revision=%d, is_hai_ios=%d\n", ios_version, ios_revision, is_hai_ios);
 
-	//HAI-IOS fw.img should be statically patched
-	/*
-	if (IOS_GetVersion() != (u32)HAXX_IOS) //skip check
-		IOS_ReloadwithAHB((u32)HAXX_IOS);
-
-	if (!do_exploit()) //basically skip
-		return -1;
-	*/
-
 	// On HAI-IOS (Wii U), modules are pre-loaded in firmware
 	// On retail Wii (IOS 37), load modules dynamically via exploit
 	if (!is_hai_ios) {
+		// Retail Wii: Need to reload to IOS 37 for the exploit
+		if (ios_version != (u32)HAXX_IOS) {
+			printf("Haxx_Init: Reloading from IOS%d to IOS37 for exploit\n", ios_version);
+			IOS_ReloadwithAHB((u32)HAXX_IOS);
+			ios_version = IOS_GetVersion();
+			ios_revision = IOS_GetRevision();
+			printf("Haxx_Init: After reload - ios_version=%d, ios_revision=%d\n", ios_version, ios_revision);
+		}
+
 		printf("Haxx_Init: Loading modules dynamically for IOS%d\n", ios_version);
 		usleep(4000);
 		int ret = load_module_code(filemodule_elf, filemodule_elf_end);
