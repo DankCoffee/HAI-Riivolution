@@ -1235,20 +1235,28 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
 			u32 junk;
+			u32 memboot = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
+			u32 kernel = (u32)new_ios & 0x1FFFFFFF;
+			printf("Setting up reload: ver=%d, memboot=%X, kernel=%X\n", ios_version, memboot, kernel);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
-			MEM1_BASE_UNCACHED[4] = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
-			MEM1_BASE_UNCACHED[5] = (u32)new_ios & 0x1FFFFFFF;
+			MEM1_BASE_UNCACHED[4] = memboot;
+			MEM1_BASE_UNCACHED[5] = kernel;
+			DCFlushRange(MEM1_BASE_UNCACHED, 32);
 			addr[0] = 0xE3A02001;
 			addr[1] = 0xE12FFF12;
 			DCFlushRange(addr, 8);
 			vec.data = &junk;
 			vec.len = sizeof(junk);
 			*MEM1_IOSVERSION = 0x00020000;
+			DCFlushRange(MEM1_IOSVERSION, 4);
+			printf("Calling IOS_IoctlvRebootBackground...\n");
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
+			printf("ERROR: RebootBackground returned!\n");
 			return;
 		}
 	}
+	printf("ERROR: ES_SYSCALL_DEVICE_OPEN not found\n");
 }
 
 static int load_module_file(s32 fd, const char *filename)
@@ -1314,15 +1322,19 @@ static void recover_from_reload(s32 version)
 	__MaskIrq(IRQ_PI_ACR);
 	irq_handler = IRQ_Free(IRQ_PI_ACR);
 
-	for (retries = 0; retries < 500; retries++)
+	printf("Waiting for IOS change from %d...\n", version);
+	for (retries = 0; retries < 100; retries++)
 	{
 		newversion = IOS_GetVersion();
 		if (newversion != version) {
+			printf("IOS changed to %d\n", newversion);
 			udelay(6000);
 			break;
 		}
 		udelay(6000);
 	}
+	if (retries >= 100)
+		printf("Reload TIMEOUT - IOS still %d\n", IOS_GetVersion());
 
 	IRQ_Request(IRQ_PI_ACR, irq_handler, NULL);
 	__UnmaskIrq(IRQ_PI_ACR);
