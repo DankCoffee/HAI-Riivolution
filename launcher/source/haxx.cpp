@@ -193,6 +193,7 @@ int Haxx_Init()
 		}
 		printf("Haxx_Init: exploit succeeded\n");
 
+		printf("Haxx_Init: filemodule_elf=%p, filemodule_elf_end=%p\n", filemodule_elf, filemodule_elf_end);
 		printf("Haxx_Init: Loading modules dynamically for IOS%d\n", ios_version);
 		usleep(4000);
 		int ret = load_module_code(filemodule_elf, filemodule_elf_end);
@@ -1359,13 +1360,20 @@ static int load_module_code(u8 *module_code, u8 *module_end)
 	s32 module_size = module_end - module_code;
 	int i;
 
-	if (module_size<16)
+	printf("load_module_code: module_size=%d\n", module_size);
+
+	if (module_size<16) {
+		printf("load_module_code: module_size too small!\n");
 		return 0;
+	}
 
 	if (memcmp(module_code, elfhdr, sizeof(elfhdr))) {
+		printf("load_module_code: decrypting module...\n");
 		dec = (u8*)memalign(32, module_size+32);
-		if (dec == NULL)
+		if (dec == NULL) {
+			printf("load_module_code: memalign failed!\n");
 			return 0;
+		}
 		memset(max, 0xFF, 32);
 		memcpy(dec, elfhdr, sizeof(elfhdr));
 		memcpy(key+16, module_code, 16);
@@ -1378,40 +1386,50 @@ static int load_module_code(u8 *module_code, u8 *module_end)
 		gentables();
 		gkey(4, 8, iv);
 		aes_decrypt(iv+16, ((u8*)module_code)+16, dec+16, module_size-16);
-	} else
+	} else {
+		printf("load_module_code: module already decrypted\n");
 		dec = (u8*)module_code;
+	}
 
 	es_fd = IOS_Open("/dev/es", 0);
 	if (es_fd<0) {
+		printf("load_module_code: IOS_Open(/dev/es) failed: %d\n", es_fd);
 		if (dec != module_code)
 			free(dec);
 		return 0;
 	}
+	printf("load_module_code: opened /dev/es, fd=%d\n", es_fd);
 
 	ISFS_Initialize();
 	ISFS_CreateFile(LOAD_MODULE_PATH, 0, 3, 1, 1);
 	fd = IOS_Open(LOAD_MODULE_PATH, ISFS_OPEN_WRITE);
 	if (fd<0)
 	{
+		printf("load_module_code: IOS_Open(%s) failed: %d\n", LOAD_MODULE_PATH, fd);
 		ISFS_Delete(LOAD_MODULE_PATH);
 		IOS_Close(es_fd);
 		if (dec != module_code)
 			free(dec);
 		return 0;
 	}
+	printf("load_module_code: created %s, fd=%d\n", LOAD_MODULE_PATH, fd);
 
 	// slight issue here since ISFS always rounds up to 32-byte chunks
 	// but it shouldn't hurt anything...
 	written = IOS_Write(fd, dec, module_size);
+	printf("load_module_code: wrote %d/%d bytes\n", written, module_size);
 	IOS_Close(fd);
 	fd = 0;
 	if (written >= module_size)
 		fd = load_module_file(es_fd, LOAD_MODULE_PATH);
+	else
+		printf("load_module_code: write failed, skipping load_module_file\n");
 
 	IOS_Close(es_fd);
 	ISFS_Delete(LOAD_MODULE_PATH);
 	if (dec != module_code)
 		free(dec);
+	printf("load_module_code: returning %d\n", fd);
 	return fd;
 }
 
