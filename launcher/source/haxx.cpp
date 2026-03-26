@@ -28,7 +28,7 @@ using std::vector;
 #define MEM2_PROT           0x0D8B420A
 #define HW_GPIO1OUT         0x0D8000E0
 #define HW_GPIO1IN          0x0D8000E8
-#define IOS_DEST	    0x0000000100000038ULL #IOS 56
+#define IOS_DEST            0x0000000100000038ULL // IOS 56
 
 #include "root_dat.h"
 
