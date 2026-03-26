@@ -567,9 +567,6 @@ Menus::Enum MenuMain()
 		}
 
 		CheckShutdown();
-
-		if (!Launcher_DiscInserted())
-			return Menus::Init;
 	}
 }
 
