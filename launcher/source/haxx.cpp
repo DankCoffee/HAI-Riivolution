@@ -1230,18 +1230,28 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 
 	ioctlv vec;
 	u32* addr;
+	u32 kernel_phys = (u32)new_ios;
+	// Convert cached address to physical
+	if (kernel_phys >= 0x80000000 && kernel_phys < 0x81800000)
+		kernel_phys = kernel_phys - 0x80000000; // MEM1 physical
+	else if (kernel_phys >= 0xC0000000 && kernel_phys < 0xC1800000)
+		kernel_phys = kernel_phys - 0xC0000000; // MEM1 uncached
+	else if (kernel_phys >= 0x90000000 && kernel_phys < 0x94000000)
+		kernel_phys = kernel_phys - 0x90000000; // MEM2
+	else if (kernel_phys >= 0xD0000000 && kernel_phys < 0xD4000000)
+		kernel_phys = kernel_phys - 0xD0000000; // MEM2 uncached
+
 	for (addr=(u32*)ES_MODULE_START;addr < (u32*)(ES_MODULE_START+ES_MODULE_SIZE);addr++)
 	{
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
 			u32 junk;
 			u32 memboot = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
-			u32 kernel = (u32)new_ios & 0x1FFFFFFF;
-			printf("Setting up reload: ver=%d, memboot=%X, kernel=%X\n", ios_version, memboot, kernel);
+			printf("Reload: ver=%d, memboot=%X, kernel_phys=%X (from %p)\n", ios_version, memboot, kernel_phys, new_ios);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
 			MEM1_BASE_UNCACHED[4] = memboot;
-			MEM1_BASE_UNCACHED[5] = kernel;
+			MEM1_BASE_UNCACHED[5] = kernel_phys;
 			DCFlushRange(MEM1_BASE_UNCACHED, 32);
 			addr[0] = 0xE3A02001;
 			addr[1] = 0xE12FFF12;
