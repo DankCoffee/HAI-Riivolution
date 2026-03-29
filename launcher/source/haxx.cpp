@@ -919,6 +919,13 @@ static int patch_gpio_stm(void* buf, s32 size)
 			printf("gpio_stm patched\n");
 			return 1;
 		}
+		// HAI-IOS specific: gpio_orig3 is originally beq, change to unconditional branch
+		if (IOS_GetVersion() == (u32)HAI_IOS && !memcmp(kernel+i, gpio_orig3, sizeof(gpio_orig3)))
+		{
+			kernel[i+8] = 0xE0;
+			printf("gpio_stm patched (IOS56)\n");
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -1196,10 +1203,16 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 
 static int load_module_file(s32 fd, const char *filename)
 {
+	// HAI-IOS should be pre-patched with the modified code
+	// check for first 15 bytes of old_es_code, retained_patch or new_es_code
+	// copy to temporary buffer, load the module and copy back
 	const u8 old_es_code[24] = {
 		0x68, 0x4B, 0x2B, 0x06, 0xD1, 0x0C, 0x68, 0x8B, 0x2B, 0x00,
 		0xD1, 0x09, 0x68, 0xC8, 0x68, 0x42, 0x23, 0xA9, 0x00, 0x9B,
 		0x42, 0x9A, 0xD1, 0x03};
+	
+	// HAI-IOS specific: detect pre-patched ES module
+	const u8 retained_patch[15] = {0x49, 0x01, 0x47, 0x88, 0x46, 0xC0, 0xE0, 0x01, 0x12, 0xFF, 0xFE, 0x00, 0x22, 0x00, 0x23};
 
 	const u16 load_module[12] =
 	{
@@ -1212,22 +1225,31 @@ static int load_module_file(s32 fd, const char *filename)
 		0xE8BD,	0x4070, // LDMFD SP!,{R4-R6,LR}
 		0xE12F,	0xFF1E, // BX LR
 	};
-
+	u8 temp[24];
 	u8 *addr;
 	s32 ret=1;
 	ioctlv vec;
 
 	for (addr=ES_MODULE_START;addr < ES_MODULE_START+ES_MODULE_SIZE-sizeof(old_es_code);addr++) {
-		if (!memcmp(addr, old_es_code, sizeof(old_es_code))) {
-			memcpy(addr, load_module, sizeof(load_module));
+		if (!memcmp(addr, old_es_code, 15) || !memcmp(addr, retained_patch, sizeof(retained_patch)) || !memcmp(addr, load_module, 15)) {
+			
+			memcpy(temp, addr, 24); // store current code in temporary buffer
+			memcpy(addr, load_module, sizeof(load_module)); // load in new module
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
 
 			// restore the old code and flush
-			memcpy(addr, old_es_code, sizeof(load_module));
+			memcpy(addr, temp, sizeof(load_module));
+			// memcpy(addr, old_es_code, sizeof(load_module));
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
+			break;
+		}
+		else if (!memcmp(addr, load_module, sizeof(load_module))) {
+			vec.data = (void*)filename;
+			vec.len = strlen(filename)+1;
+			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
 			break;
 		}
 	}
@@ -1626,34 +1648,40 @@ static bool do_exploit()
 		else
 		{
 			seeprom_read(&seeprom, 0, sizeof(seeprom));
-			//seeprom_write(korean_key, 0x74, 16);
-			//seeprom_write(null_key, 0x74, 16);
 		}
-		if (!patch_failed)
-		{
-			new_ios = prepare_new_kernel(HAXX_IOS);
-			patch_failed = !new_ios;
-			if (patch_failed)
-				printf("Failed to prepare new kernel\n");
-		}
+		
+		// HAI-IOS: Patches already applied in firmware, skip kernel reload
+		if (IOS_GetVersion() == (u32)HAI_IOS) {
+			printf("HAI-IOS: Skipping kernel patching (pre-patched)\n");
+		} else {
+			// IOS 37: Full exploit with kernel patching and reload
+			if (!patch_failed)
+			{
+				new_ios = prepare_new_kernel(HAXX_IOS);
+				patch_failed = !new_ios;
+				if (patch_failed)
+					printf("Failed to prepare new kernel\n");
+			}
 
-		if (!patch_failed)
-		{
-			shutdown_for_reload();
-			load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
-			free(new_ios);
-			es_fd = 0;
-			recover_from_reload((u32)HAXX_IOS);
+			if (!patch_failed)
+			{
+				shutdown_for_reload();
+				load_patched_ios(es_fd, new_ios, MEM1_IOSVERSION[0]+1);
+				free(new_ios);
+				es_fd = 0;
+				recover_from_reload((u32)HAXX_IOS);
 #if DEBUG_HAXX && DEBUG_NET
-			Init_DebugConsole();
+				Init_DebugConsole();
 #endif
-			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
-				patch_failed = 1;
-			} else
-				printf("Loaded patched IOS\n");
+				if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
+					printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
+					patch_failed = 1;
+				} else
+					printf("Loaded patched IOS\n");
+			}
 		}
 
+		// NAND_PERMS patch needed for both IOS versions
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
 
