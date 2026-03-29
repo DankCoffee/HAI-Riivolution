@@ -1120,6 +1120,7 @@ static void* prepare_new_kernel(u64 title)
 	return kernel_blob;
 }
 
+// remember any MEM2 data may be invalid after reloading IOS
 static void shutdown_for_reload()
 {
 #if DEBUG_HAXX && DEBUG_NET
@@ -1134,8 +1135,19 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 {
 	static const u16 ios_boot[] =
 	{
-		0x4804, 0x46C0, 0x4901, 0x4B02, 0x4798, 0x46C0,
-		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+		0x4804, // ldr r0, =kernel_ptr
+		0x46C0, // nop
+		0x4901, // ldr r1, =HAX_IOS_VERSION
+		0x4B02, // ldr r3, os_ios_memboot
+		0x4798, // blx r3
+		0x46C0, // nop
+		// Normally, the addresses below would be commented out
+		0x0000, // HAXX_IOS_VERSION
+		0x0000,
+		0x0000, // es_syscall_ios_memboot
+		0x0000,
+		0x0000, // kernel_ptr
+		0x0000
 	};
 
 	ioctlv vec;
@@ -1145,16 +1157,23 @@ static void load_patched_ios(s32 fd, void* new_ios, u32 ios_version)
 		if (*addr == SYSCALL_DEVICE_OPEN)
 		{
 			u32 junk;
+			printf("Found ES_SYSCALL_DEVICE_OPEN at 0x%08X\n", (u32)addr);
 			memcpy(MEM1_BASE_UNCACHED, ios_boot, sizeof(ios_boot));
 			MEM1_BASE_UNCACHED[3] = ios_version;
-			MEM1_BASE_UNCACHED[4] = (u32)addr + 0x138 - 0x939F0000 + 0x20100000;
-			MEM1_BASE_UNCACHED[5] = (u32)new_ios & 0x1FFFFFFF;
+			MEM1_BASE_UNCACHED[4] = (u32)addr + 0x138 - 0x939F0000 + 0x20100000; // es_syscall_ios_memboot
+			MEM1_BASE_UNCACHED[5] = (u32)new_ios & 0x1FFFFFFF; // kernel path name
+			//printf("%08X %08X\n", MEM1_BASE_UNCACHED[4], MEM1_BASE_UNCACHED[5]);
+
 			addr[0] = 0xE3A02001;
 			addr[1] = 0xE12FFF12;
 			DCFlushRange(addr, 8);
 			vec.data = &junk;
 			vec.len = sizeof(junk);
+			// change ios version in lowmem so we know when the new one has loaded
 			*MEM1_IOSVERSION = 0x00020000;
+			printf("Taking the plunge...\n");
+			//printf("IOS returned %d\n", IOS_Ioctlv(fd, 0x0c, 0, 1, &vec));
+			//printf("Owned titles: %d\n", junk);
 			IOS_IoctlvRebootBackground(fd, 0x0C, 0, 1, &vec);
 			return;
 		}
@@ -1170,9 +1189,14 @@ static int load_module_file(s32 fd, const char *filename)
 
 	const u16 load_module[12] =
 	{
-		0x68CE, 0x6830, 0x4778, 0x46C0,
-		0xE600, 0x0B50, 0xE28D, 0xD020,
-		0xE8BD, 0x4070, 0xE12F, 0xFF1E
+		0x68CE, // ldr r6, [r1, #0x0c]	; ipcmessage.vec
+		0x6830, // ldr r0, [r6]			; vec[0].data (filename of module)
+		0x4778, // thumb->arm (BX PC)
+		0x46C0, // nop (for alignment, assumes this block starts 4-byte aligned)
+		0xE600,	0x0B50, // syscall_5a (load_ios_module)
+		0xE28D,	0xD020, // ADD SP, SP, #0x20
+		0xE8BD,	0x4070, // LDMFD SP!,{R4-R6,LR}
+		0xE12F,	0xFF1E, // BX LR
 	};
 
 	u8 *addr;
@@ -1186,6 +1210,8 @@ static int load_module_file(s32 fd, const char *filename)
 			vec.data = (void*)filename;
 			vec.len = strlen(filename)+1;
 			ret = IOS_Ioctlv(fd, 0x1F, 1, 0, &vec);
+
+			// restore the old code and flush
 			memcpy(addr, old_es_code, sizeof(load_module));
 			DCFlushRange((void*)((u32)addr&~0x1F), 32);
 			break;
@@ -1200,9 +1226,11 @@ static void recover_from_reload(s32 version)
 	s32 newversion;
 	int retries;
 	raw_irq_handler_t irq_handler;
+	// Mask IPC IRQ while we're busy reloading
 	__MaskIrq(IRQ_PI_ACR);
 	irq_handler = IRQ_Free(IRQ_PI_ACR);
 
+	// Wait for old IOS to change version number before reloading
 	for (retries = 0; retries < 500; retries++)
 	{
 		newversion = IOS_GetVersion();
@@ -1212,6 +1240,7 @@ static void recover_from_reload(s32 version)
 			break;
 	}
 
+	// Catch erroneous IPC signal
 	for (retries = 0; retries < 10; retries++)
 	{
 		if(*IPC_REG_1 & 2)
@@ -1282,6 +1311,8 @@ static int load_module_code(u8 *module_code, u8 *module_end)
 		return 0;
 	}
 
+	// slight issue here since ISFS always rounds up to 32-byte chunks
+	// but it shouldn't hurt anything...
 	written = IOS_Write(fd, dec, module_size);
 	IOS_Close(fd);
 	fd = 0;
@@ -1306,10 +1337,15 @@ static int load_sdhc_module(u64 title_ios)
 	int i, found=0;
 	u32 j;
 
+	//printf("Attempting to load SDHC module from IOS %d\n", (u32)title_ios);
+
 	sprintf(filename, "/title/%08x/%08x/content/title.tmd", (u32)(title_ios>>32), (u32)title_ios);
 	tmd_blob = (u32*)fetch_file(filename, 0);
 	if (tmd_blob==NULL)
+		{
+		//printf("Couldn't get TMD blob for SDHC\n");
 		return 0;
+		}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
 
 	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob)))
@@ -1321,7 +1357,7 @@ static int load_sdhc_module(u64 title_ios)
 
 	for (i=0; i < title_tmd->num_contents && !found; i++)
 	{
-		free(module_buf);
+		free(module_buf); // lazy
 		module_buf = load_tmd_content(title_tmd, i);
 		size = title_tmd->contents[i].size;
 		if (module_buf)
@@ -1355,10 +1391,26 @@ static int do_sig_check_patch()
                   0x06, 0x1b, 0x06, 0x12, 0x42, 0x9a, 0xd1, 0x01, 0x40, 0x20, 0xe0, 0x00,
                   0x20, 0x00, 0x31, 0x01, 0x29, 0x13, 0xd9, 0xf1, 0x28, 0x00, 0xd0, 0x01};
 	const u8 new_hashcmp[34] = {
-                0x24, 0x00, 0x78, 0x3A, 0x37, 0x01, 0x78, 0x2B, 0x35, 0x01,
-                0x42, 0x9A, 0xd1, 0x00, 0x34, 0x01, 0x31, 0x01, 0x29, 0x13,
-                0xd9, 0xf5, 0x28, 0x00, 0xd0, 0x05, 0x2C, 0x01, 0xd9, 0x03,
-                0x46, 0xC0, 0x46, 0xC0
+                0x24, 0x00, // movs r4, #0
+/* 13A752C2 */  0x78, 0x3A, // ldrb r2, [r7]
+                0x37, 0x01, // adds r7, #1
+                0x78, 0x2B, // ldrb r3, [r5]
+                0x35, 0x01, // adds r5, #1
+                0x42, 0x9A, // cmp r2, r3
+                0xd1, 0x00, // bne loc_13A752D0
+                0x34, 0x01, // adds r4, #1
+/* 13A752D0 */  0x31, 0x01, // adds r1, #1
+                0x29, 0x13, // cmp r1, #0x13
+                0xd9, 0xf5, // bls loc_13A752C2
+/* 13A752D6 */  0x28, 0x00, // cmp r0, #0
+/* 13A752D8 */  0xd0, 0x05, // beq loc_13A752E6
+                0x2C, 0x01, // cmp r4, #1
+                0xd9, 0x03, // bls loc_13A752E6
+                0x46, 0xC0, // nop
+                0x46, 0xC0, // nop
+
+
+/* 13A752E6 */
             };
 
 	for (i=0; i < size - sizeof(old_hashcmp); i++)
@@ -1435,11 +1487,13 @@ int seeprom_write(const void *src, unsigned int offset, unsigned int size) {
 	offset>>=1;
 	size>>=1;
 
+	// don't interrupt us, this is srs bsns
 	_CPU_ISR_Disable(level);
 	mask32(HW_GPIO1OUT, GP_EEP_CLK, 0);
 	mask32(HW_GPIO1OUT, GP_EEP_CS, 0);
 	eeprom_delay();
 
+	// EWEN - Enable programming commands
 	mask32(HW_GPIO1OUT, 0, GP_EEP_CS);
 	seeprom_send_bits(0x4FF, 11);
 	mask32(HW_GPIO1OUT, GP_EEP_CS, 0);
@@ -1448,11 +1502,16 @@ int seeprom_write(const void *src, unsigned int offset, unsigned int size) {
 	for (i = 0; i < size; i++) {
 		send = (ptr[0]<<8) | ptr[1];
 		ptr += 2;
+		// start command cycle
 		mask32(HW_GPIO1OUT, 0, GP_EEP_CS);
+		// send command + address
 		seeprom_send_bits((0x500 | (offset + i)), 11);
+		// send data
 		seeprom_send_bits(send, 16);
+		// end of command cycle
 		mask32(HW_GPIO1OUT, GP_EEP_CS, 0);
 		eeprom_delay();
+		// wait for ready (write cycle is self-timed so no clocking needed)
 		mask32(HW_GPIO1OUT, 0, GP_EEP_CS);
 		do {
 			eeprom_delay();
@@ -1461,6 +1520,7 @@ int seeprom_write(const void *src, unsigned int offset, unsigned int size) {
 		eeprom_delay();
 	}
 
+	// EWDS - Disable programming commands
 	mask32(HW_GPIO1OUT, 0, GP_EEP_CS);
 	seeprom_send_bits(0x400, 11);
 	mask32(HW_GPIO1OUT, GP_EEP_CS, 0);
@@ -1509,7 +1569,7 @@ static bool do_exploit()
 
 	if (IOS_GetVersion() != (u32)HAXX_IOS || (ios_rev != 5663 && ios_rev != 5662 && ios_rev != 3869 && ios_rev != 5919))
 	{
-		printf("Wrong IOS version\n");
+		printf("Wrong IOS version (%08x). Update IOS%d to the latest version.\n", read32(0x3140), (u32)HAXX_IOS);
 		return false;
 	}
 
@@ -1525,6 +1585,11 @@ static bool do_exploit()
 	{
 		void *new_ios;
 		u32 ng_id;
+#if 0
+		u8 korean_key[16] = {0x63, 0xb8, 0x2b, 0xb4, 0xf4, 0x61, 0x4e, 0x2e,
+							 0x13, 0xf2, 0xfe, 0xfb, 0xba, 0x4c, 0x9b, 0x7e};
+		u8 null_key[16] = {0};
+#endif
 		printf("MEM2 protection disabled\n");
 		patch_failed = 0;
 
@@ -1547,6 +1612,8 @@ static bool do_exploit()
 		else
 		{
 			seeprom_read(&seeprom, 0, sizeof(seeprom));
+			//seeprom_write(korean_key, 0x74, 16);
+			//seeprom_write(null_key, 0x74, 16);
 		}
 		if (!patch_failed)
 		{
@@ -1567,7 +1634,7 @@ static bool do_exploit()
 			Init_DebugConsole();
 #endif
 			if (IOS_GetVersion() != (u32)HAXX_IOS || IOS_GetRevision() != ios_rev+1) {
-				printf("New IOS Version incorrect\n");
+				printf("New IOS Version is incorrect, %08X\n", IOS_GetVersion());
 				patch_failed = 1;
 			} else
 				printf("Loaded patched IOS\n");
@@ -1576,6 +1643,8 @@ static bool do_exploit()
 		if (!patch_failed)
 			patch_failed = !do_patch(NAND_PERMS_INDEX);
 
+		// if sneek was found, we need to reload IOS again before doing anything else
+		// to make sure we have clean modules
 		patch_failed |= sneek;
 
 		if (!patch_failed)
@@ -1585,19 +1654,15 @@ static bool do_exploit()
 				load_sdhc_module(0x000000010000003Dllu) || load_sdhc_module(0x0000000100000050llu));
 			if (patch_failed)
 			{
+				printf("SDHC module couldn't be loaded, trying IOS%d SD.\n") // , (u32)HAXX_IOS);
 				patch_failed = !load_sdhc_module(HAXX_IOS);
+
 			}
 		}
 
-#ifndef YARR
-		if (!patch_failed)
-			patch_failed = !do_sig_check_patch();
-		if (!patch_failed)
-			patch_failed = !do_patch(DVD_SWITCH_INDEX);
-#endif
 
 		if (sneek) {
-			printf("SNEEK found, rebooting...\n");
+			printf("SNEEK found, have to reboot again *sigh*\n");
 			if (es_fd >=0 )
 				IOS_Close(es_fd);
 			IOS_ReloadIOS((u32)HAXX_IOS);
@@ -1645,13 +1710,19 @@ void RunBootmii()
 
 	File_Close(in_fd);
 	DCStoreRange(buf, bootmii_size);
+	// set IOS version to match bootmii ios, disables autoboot
 	load_patched_ios(es_fd, buf, 0xFEFF01);
 	free(buf);
 }
 
 static const u16 ticket_check[] =
 {
-	0x685B, 0x22EC, 0x0052, 0x189B, 0x681B, 0x4698, 0x07DB
+	0x685B,               // ldr r3,[r3,#4]  ; get TMD pointer
+	0x22EC, 0x0052,       // movls r2, 0x1D8
+	0x189B,               // adds r3, r3, r2 ; add offset of access rights field in TMD
+	0x681B,               // ldr r3, [r3]    ; load access rights (haxxme!)
+	0x4698,               // mov r8, r3      ; store it for the DVD video bitcheck later
+	0x07DB                // lsls r3, r3, #31; check AHBPROT bit
 };
 
 static void IOS_ReloadwithAHB(u32 ios_version)
@@ -1669,13 +1740,13 @@ static void IOS_ReloadwithAHB(u32 ios_version)
 					write32((u32)(patchme+3), (ticket_check[3]<<16)|0x23FF);
 				else
 					write32((u32)(patchme+4), (0x23FF<<16)|ticket_check[5]);
-				printf("IOS TMD check patched\n");
+				printf("IOS TMD check was patched\n");
 				break;
 			}
 		}
 	}
 	else
-		printf("AHBPROT not disabled\n");
+		printf("AHBPROT was not disabled, couldn't keep it during reload\n");
 
 	printf("Reloading IOS %d...\n", ios_version);
 	IOS_ReloadIOS(ios_version);
@@ -1725,6 +1796,7 @@ static int check_rsa(const u8 *h, const u8 *sig, const u8 *key, const u32 n)
 	if (memcmp(correct, x, n) == 0)
 		return 0;
 
+	// replicate the strncmp bug
 	if (strncmp((char*)h, (char*)x+n-20, 20)==0)
 		return -100;
 
@@ -1734,6 +1806,8 @@ static int check_rsa(const u8 *h, const u8 *sig, const u8 *key, const u32 n)
 static int check_hash(const u8 *h, const u8 *sig, const u8 *key)
 {
 	u32 type = be32(sig) - 0x10000;
+	//if (h[0])
+	//	return -400;
 	if (type != be32(key + 0x40))
 		return -6;
 
@@ -1821,6 +1895,9 @@ int check_cert_chain(const u8 *data, const u32 data_len)
 
 		SHA1(sub, sub_len, h);
 		ret = check_hash(h, sig, key);
+		// uncomment this if you want to check the whole chain's integrity
+		// rather than just the tail certificate
+		//if (ret)
 		return ret;
 
 		sig = key_cert;
@@ -1836,3 +1913,4 @@ int check_cert_chain(const u8 *data, const u32 data_len)
 	return 0;
 #endif
 }
+/*********** SIGNATURE CHECKING STUFF ENDS */
