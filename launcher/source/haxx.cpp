@@ -165,12 +165,21 @@ static void bn_exp(u8 *d, const u8 *a, const u8 *N, const u32 n, const u8 *e, co
 static void IOS_ReloadwithAHB(u32 ios_version);
 
 int Haxx_Init()
-{
-	if (IOS_GetVersion() != (u32)HAXX_IOS)
-		IOS_ReloadwithAHB((u32)HAXX_IOS);
+{ 
 
-	if (!do_exploit())
-		return -1;
+	//Reload to correct IOS
+	if (IOS_GetVersion() == (u32)HAI_IOS) {
+		printf("HAI-IOS detected\n");
+		IOS_ReloadwithAHB((u32)HAI_IOS);
+	} else if (IOS_GetVersion() != (u32)HAXX_IOS) {
+		printf("IOS 37 detected\n");
+		IOS_ReloadwithAHB((u32)HAXX_IOS)
+	}
+
+	if (IOS_GetVersion() == (u32)HAXX_IOS) {
+		if (!do_exploit())
+			return -1;
+	}	
 
 	usleep(4000);
 	if (load_module_code(filemodule_elf, filemodule_elf_end) <= 0)
