@@ -22,7 +22,7 @@ using std::vector;
 //#define BABELFISH
 
 #if !defined(BABELFISH) && !defined(DEBUG_HAXX)
-#define printf(...)
+// #define printf(...)
 #endif
 
 #define MEM2_PROT           0x0D8B420A
@@ -451,7 +451,8 @@ static const u16 new_dev_fs_open_flash[] = {
 enum {
     MEM2_INDEX=0,
     NAND_PERMS_INDEX,
-    DVD_SWITCH_INDEX
+    DVD_SWITCH_INDEX,
+    NEW_NAND_PERMS_INDEX
 };
 
 static const struct {
@@ -461,7 +462,8 @@ static const struct {
 } patches[] = {
     {MEM_PROT, 1, 2},
     {(u16*)0x93A112F2, 0xD001, 0xE001},
-    {(u16*)0x939B052C, 0xD140, 0x46C0}
+    {(u16*)0x939B052C, 0xD140, 0x46C0},
+    {(u16*)0x93A11306, 0xD001, 0xE001}
 };
 
 typedef struct _cmap_entry
@@ -905,6 +907,9 @@ static int patch_gpio_stm(void* buf, s32 size)
 	u8 *kernel = (u8*)buf;
 	static const u8 gpio_orig[8] =  {0xD1, 0x0F, 0x28, 0xFC, 0xD0, 0x33, 0x28, 0xFC};
 	static const u8 gpio_orig2[8] = {0xD1, 0x3D, 0x23, 0x89, 0x00, 0x9B, 0x42, 0x98};
+	static const u8 gpio_orig3[16] = {0x4b, 0x76, 0x68, 0x1b, 0x6d, 0x5b, 0x2b, 0x0e, 0xD0, 0x02, 0x20, 0x01, 0x42, 0x40, 0x47, 0x70};
+	//others are changing bneq to no-op
+	//gpio_orig3 is originally beq, change to unconditional branch
 	for (i=0; i < size - sizeof(gpio_orig); i++)
 	{
 		if (!memcmp(kernel+i, gpio_orig, sizeof(gpio_orig)) || !memcmp(kernel+i, gpio_orig2, sizeof(gpio_orig2)))
