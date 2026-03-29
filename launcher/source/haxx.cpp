@@ -173,7 +173,7 @@ int Haxx_Init()
 		IOS_ReloadwithAHB((u32)HAI_IOS);
 	} else if (IOS_GetVersion() != (u32)HAXX_IOS) {
 		printf("IOS 37 detected\n");
-		IOS_ReloadwithAHB((u32)HAXX_IOS)
+		IOS_ReloadwithAHB((u32)HAXX_IOS);
 	}
 
 	if (IOS_GetVersion() == (u32)HAXX_IOS) {
