@@ -65,16 +65,6 @@ int USB_DisableWBFS();
  */
 const char* USB_GetStatusString();
 
-/**
- * Test USB loading with hardcoded game ID.
- * This is a Phase 1 test function for validating USB functionality.
- *
- * Trigger: Hold 1+2 on Wiimote, or L+R on Classic Controller/GameCube controller
- *
- * @return 0 on success, negative on error
- */
-int USB_TestHardcodedGame();
-
 #ifdef __cplusplus
 }
 #endif

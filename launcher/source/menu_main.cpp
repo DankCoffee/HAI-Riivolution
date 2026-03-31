@@ -4,7 +4,6 @@
 #include "riivolution_config.h"
 #include "installer.h"
 #include "init.h"
-#include "usb.h"
 #include "gamepatches.h"
 
 #include <unistd.h>
@@ -12,9 +11,6 @@
 
 #include <vector>
 using std::vector;
-
-// USB test function
-extern "C" int USB_TestHardcodedGame();
 
 /*
 #define OPTIONS_PER_PAGE 15
@@ -356,26 +352,6 @@ struct PageViewer {
 			return Menus::Settings; \
 	} \
 	CheckShutdown(); \
-	/* USB Debug Test: 1+2 on Wiimote, or L+R on Classic/GC */ \
-	WPAD_ScanPads(); \
-	PAD_ScanPads(); \
-	u32 wpad_held = WPAD_ButtonsHeld(0) | WPAD_ButtonsHeld(1) | WPAD_ButtonsHeld(2) | WPAD_ButtonsHeld(3); \
-	u32 gc_held = PAD_ButtonsHeld(0) | PAD_ButtonsHeld(1) | PAD_ButtonsHeld(2) | PAD_ButtonsHeld(3); \
-	if ((wpad_held & (WPAD_BUTTON_1 | WPAD_BUTTON_2)) == (WPAD_BUTTON_1 | WPAD_BUTTON_2) || \
-	    (wpad_held & (WPAD_CLASSIC_BUTTON_FULL_L | WPAD_CLASSIC_BUTTON_FULL_R)) == (WPAD_CLASSIC_BUTTON_FULL_L | WPAD_CLASSIC_BUTTON_FULL_R) || \
-	    (gc_held & (PAD_TRIGGER_L | PAD_TRIGGER_R)) == (PAD_TRIGGER_L | PAD_TRIGGER_R)) { \
-		HaltGui(); \
-		Subtitle->SetText("USB DEBUG TEST"); \
-		ResumeGui(); \
-		USB_TestHardcodedGame(); \
-		HaltGui(); \
-		Subtitle->SetText("Press A to continue..."); \
-		ResumeGui(); \
-		PressA(); \
-		HaltGui(); \
-		Subtitle->SetText("Loading..."); \
-		ResumeGui(); \
-	} \
 }
 
 Menus::Enum MenuMount()
