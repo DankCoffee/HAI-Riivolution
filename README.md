@@ -1,6 +1,6 @@
-# [HAI-Riivolution](https://wiibrew.org/wiki/Riivolution) and [RawkSD](https://wiibrew.org/wiki/RawkSD)
+# [DVD-Riivolution](https://wiibrew.org/wiki/Riivolution) and [RawkSD](https://wiibrew.org/wiki/RawkSD)
 
-Modified version of Riivolution for running under HAI-IOS, supporting Gamepad input
+Modified version of Riivolution for running burned discs.
 
 Information archives:
 - [Riivolution Wiki](https://aerialx.github.io/rvlution.net/wiki/Main_Page/)
