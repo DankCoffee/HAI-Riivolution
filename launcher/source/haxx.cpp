@@ -22,7 +22,7 @@ using std::vector;
 //#define BABELFISH
 
 #if !defined(BABELFISH) && !defined(DEBUG_HAXX)
-//#define printf(...)
+#define printf(...)
 #endif
 
 #define MEM2_PROT           0x0D8B420A
