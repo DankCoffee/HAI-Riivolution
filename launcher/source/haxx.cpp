@@ -1061,13 +1061,6 @@ static void* prepare_new_kernel(u64 title)
 	}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
 
-	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob)))
-	{
-		free(tmd_blob);
-		printf("IOS %d TMD failed sig check\n", (u32)title);
-		return NULL;
-	}
-
 	for (i=0; i < title_tmd->num_contents; i++)
 	{
 		u8 *blob = load_tmd_content(title_tmd, i);
@@ -1368,13 +1361,6 @@ static int load_sdhc_module(u64 title_ios)
 		return 0;
 		}
 	title_tmd = (tmd*)SIGNATURE_PAYLOAD(tmd_blob);
-
-	if (check_cert_chain((u8*)tmd_blob, SIGNED_TMD_SIZE(tmd_blob)))
-	{
-		free(tmd_blob);
-		printf("IOS %d TMD failed sig check\n", (u32)title_ios);
-		return 0;
-	}
 
 	for (i=0; i < title_tmd->num_contents && !found; i++)
 	{
@@ -1881,8 +1867,3 @@ static const u8* find_cert_in_chain(const u8 *sub, const u8 *cert, const u32 cer
 	return 0;
 }
 
-int check_cert_chain(const u8 *data, const u32 data_len)
-{
-	return 0;
-}
-/*********** SIGNATURE CHECKING STUFF ENDS */
