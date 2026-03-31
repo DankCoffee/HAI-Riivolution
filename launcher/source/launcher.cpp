@@ -215,65 +215,6 @@ LauncherStatus::Enum Launcher_ReadDisc()
 	if (WDVD_LowReadDiskId())
 		return LauncherStatus::ReadError;
 
-#ifndef YARR
-    // sectors are 0x800 bytes, use a bit extra
-	static u8 sector[0xC00] ATTRIBUTE_ALIGN(32);
-
-	memset(sector, 0xFF, 52);
-	memset(sector+52, 0, 12);
-	if (WDVD_LowReadBCA(sector, 0x40))
-		return LauncherStatus::ReadError;
-
-	// check BCA userdata is zeroes except last byte (NSMBW)
-	for (i=0; i < 51; i++)
-		if (sector[i])
-			return LauncherStatus::ReadError;
-	// check BCA tail (12 bytes) isn't zeroes
-	for (i=53; i < 64; i++)
-		if (sector[i])
-			break;
-	if (i==64)
-		return LauncherStatus::ReadError;
-
-	// check for fake BCA
-	memset(sector, 0xFF, 0x40);
-	if (WDVD_LowUnencryptedRead(sector, 0x40, 0x100))
-		return LauncherStatus::ReadError;
-
-	for (i=0; i < 0x40; i++)
-		if (sector[i])
-			return LauncherStatus::ReadError;
-
-	// check for 0xC3F81A8E tag, which isn't really documented and might be scrubbed by modchips
-	if (WDVD_LowUnencryptedRead(sector, 0x100, 0x4FF00))
-		return LauncherStatus::ReadError;
-	if (sector[0xFC] != 0xC3 || sector[0xFD] != 0xF8 || sector[0xFE] != 0x1A || sector[0xFF] != 0x8E)
-		return LauncherStatus::ReadError;
-
-	// check if it returns a key when it shouldn't (001 error)
-	if (WDVD_ReportKey(4, 0, sector) != -2)
-		return LauncherStatus::ReadError;
-
-	// check for WODE
-	// enable long DI unencrypted reads
-	*(u16*)0x939B0A88 = 0x2001;
-	DCFlushRange((void*)0x939B0A80, 32);
-	j = WDVD_LowUnencryptedRead(sector, 0x20, 0xFF574F44);
-	// disable long DI unencrypted reads
-	*(u16*)0x939B0A88 = 0x2000;
-	DCFlushRange((void*)0x939B0A80, 32);
-	if (!j) {
-		if (sector[0]=='W' && sector[1]=='O' && sector[2]=='D' && sector[3]=='E')
-			return LauncherStatus::ReadError;
-	} else
-		return LauncherStatus::ReadError;
-
-	// make sure LowUnencryptedRead lba table hasn't been patched
-	if (WDVD_LowUnencryptedRead(0, 0, 0x2EE00000llu << 2) != -32)
-		return LauncherStatus::ReadError;
-
-#endif
-
 	if (WDVD_LowUnencryptedRead(GameName, 0x40, 0x20))
 		return LauncherStatus::ReadError;
 
